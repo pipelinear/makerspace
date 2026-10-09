@@ -1,12 +1,14 @@
 (() => {
   'use strict';
-  const { tools: equipment, projects, roboticsImage, roboticsCredit, clubLeaders, showcase } = window.MAKERSPACE;
+  const { tools: equipment, projects, roboticsImage, roboticsCredit, clubLeaders, clubSignatures, showcase } = window.MAKERSPACE;
   const tools = [...equipment,
     { slug: 'the-club', name: 'The club', category: 'SBHS / GOLDEN TIME', number: '13', background: '#e5e2f0', color: '#172a23' },
-    { slug: 'club-leaders', name: 'The people', category: 'CLUB LEADERSHIP', number: '14', background: '#ebbe9f', color: '#172a23' }
+    { slug: 'club-leaders', name: 'The people', category: 'CLUB LEADERSHIP', number: '14', background: '#ebbe9f', color: '#172a23' },
+    { slug: 'club-signatures', name: 'Club signatures', category: 'OUR SIGNATURES', number: '15', background: '#f6f3e9', color: '#172a23' }
   ];
   const CLUB_PAGE = equipment.length;
   const LEADERS_PAGE = CLUB_PAGE + 1;
+  const SIGNATURES_PAGE = LEADERS_PAGE + 1;
   const $ = (id) => document.getElementById(id);
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   const escape = (value) => String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
@@ -46,6 +48,7 @@
   }
 
   function posterHTML(tool) {
+    if (tool.slug === 'club-signatures') return signaturePageHTML('left');
     if (tool.slug === 'the-club' || tool.slug === 'club-leaders') return `<div class="club-frontmatter${tool.slug === 'club-leaders' ? ' leaders-frontmatter' : ''}"><span class="eyebrow">SANTA BARBARA HIGH SCHOOL</span><h2>${tool.slug === 'the-club' ? 'This room<br>is <em>ours.</em>' : 'Meet<br>the <em>people.</em>'}</h2><p>${tool.slug === 'the-club' ? 'Bring an idea. Find your people.' : 'The people who help ideas happen.'}</p><div class="club-imprint"><span>DESIGN<br>FABRICATION<br>ELECTRONICS<br>ART</span><span>26–27</span></div></div>`;
     return `${picture(tool.image, tool.alt, 'class="poster-image" loading="eager" decoding="async"')}<span class="poster-wash"></span>
       <span class="poster-kicker"><span>THE MAKERSPACE COLLECTION</span><span>SBHS / 2026</span></span>
@@ -55,6 +58,7 @@
   }
 
   function detailHTML(tool, index) {
+    if (tool.slug === 'club-signatures') return signaturePageHTML('right');
     if (tool.slug === 'club-leaders') return `<div class="detail-top"><span>THE PEOPLE</span><span>SBHS / 26–27</span></div>
       <div class="leaders-page-copy"><h2>Meet the<br>Makerspace club.</h2><p class="leaders-intro">Say hello to the team.</p><div class="leader-list">${clubLeaders.map((person) => `<article class="leader-person"><div class="leader-portrait">${person.image ? picture(person.image, person.name ? `Portrait of ${person.name}` : person.role) : '<span class="portrait-placeholder" aria-label="Portrait coming soon"></span>'}</div><div><span class="leader-role">${escape(person.role)}</span><h3>${escape(person.name || 'Name to be added')}</h3><p>${escape(person.description)}</p></div></article>`).join('')}</div></div>
       <div class="detail-bottom"><span>OUR TEAM / 2026–27</span><button data-club-page>← Golden Time</button></div>`;
@@ -69,6 +73,17 @@
       <h3 class="detail-subtitle">IDEAS & THINGS MADE</h3><div class="idea-list">${tool.ideas.map((idea, ideaIndex) => ideaHTML(tool, idea, ideaIndex)).join('')}</div>
       <p class="detail-note">${escape(tool.note)}</p></div>
       <div class="detail-bottom"><span>EXAMPLE PHOTO · ${credit(tool.credit)}</span><span>${String((index + 1) * 2).padStart(2, '0')}</span></div>`;
+  }
+
+  function signaturePageHTML(side) {
+    const bounded = (value, fallback, min, max) => Number.isFinite(Number(value)) ? Math.max(min, Math.min(max, Number(value))) : fallback;
+    return `<div class="signature-paper" role="group" aria-label="Club signatures, ${side} page"><div class="signature-marks">${clubSignatures.filter((signature) => signature.page === side).map((signature) => {
+      const width = bounded(signature.width, 55, 10, 85);
+      const x = bounded(signature.x, 12, 0, 100 - width);
+      const y = bounded(signature.y, 18, 0, 75);
+      const rotation = bounded(signature.rotation, 0, -20, 20);
+      return `<figure class="signature-entry" style="left:${x}%;top:${y}%;width:${width}%;transform:rotate(${rotation}deg)">${picture(signature.image, signature.alt || `${signature.name}’s signature`, 'loading="eager" decoding="async" draggable="false"')}<figcaption class="sr-only">${escape(signature.name)}</figcaption></figure>`;
+    }).join('')}</div><span class="signature-page-number" aria-hidden="true">${SIGNATURES_PAGE * 2 + (side === 'left' ? 1 : 2)}</span></div>`;
   }
 
   function ideaHTML(tool, idea, index) {
@@ -129,9 +144,11 @@
     $('next-page').disabled = state.page === tools.length - 1 || state.busy;
     $('footer-volume').textContent = 'Vol. 01';
     $('announcement').textContent = state.open ? `${tool.name}, collection ${state.page + 1} of ${tools.length}` : 'Makerspace collection cover';
-    $('book-spread').setAttribute('aria-label', state.open ? state.page === CLUB_PAGE ? 'The Makerspace club: Golden Time and membership' : state.page === LEADERS_PAGE ? 'Meet the Makerspace club leaders' : `${tool.name}: poster and project ideas` : 'Makerspace collection');
-    $('poster-page').classList.toggle('is-club-page', state.page >= CLUB_PAGE);
-    $('detail-page').classList.toggle('is-club-page', state.page >= CLUB_PAGE);
+    $('book-spread').setAttribute('aria-label', state.open ? state.page === CLUB_PAGE ? 'The Makerspace club: Golden Time and membership' : state.page === LEADERS_PAGE ? 'Meet the Makerspace club leaders' : state.page === SIGNATURES_PAGE ? 'Two pages for Makerspace club signatures' : `${tool.name}: poster and project ideas` : 'Makerspace collection');
+    for (const id of ['poster-page', 'detail-page']) {
+      $(id).classList.toggle('is-club-page', state.page >= CLUB_PAGE && state.page <= LEADERS_PAGE);
+      $(id).classList.toggle('is-signature-page', state.page === SIGNATURES_PAGE);
+    }
     for (const id of ['poster-page', 'detail-page', 'reader-controls']) {
       $(id).inert = !state.open || state.busy;
       $(id).setAttribute('aria-hidden', String(!state.open));

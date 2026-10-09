@@ -21,3 +21,5 @@
 A student club for design, fabrication, electronics, and art. Explore the tools in our room, the projects we’re planning, and a Robotics course in the making.
 
 **Golden Time** · Tuesdays & Fridays, during homeroom. Beginners welcome.
+
+The last spread is for club signatures. Put signature images in `dist/assets/signatures/` and add them to `clubSignatures` in `dist/content.js`. Each entry has a name, image path, `page` (`left` or `right`), percentage positions `x` and `y`, percentage `width`, and optional `rotation` in degrees. Nick’s static signature and flame are included; the rest of the paper is open for members to sign.

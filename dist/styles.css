@@ -356,3 +356,14 @@ body[data-view="volume-02"] .wordmark{font-family:'Helvetica Neue',Arial,sans-se
 .volume-password-dialog input:focus{outline:0;border-bottom:2px solid var(--ink)}
 .volume-password-error{min-height:2.8em;padding-top:10px;font:.8rem/1.4 var(--sans);color:#7d3931}
 .volume-password-actions{display:flex;justify-content:space-between;margin-top:18px;font-size:1.1rem}
+
+/* The final spread is open paper for members' own signature images. */
+.book-stage .is-signature-page{padding:0;background:var(--paper);color:var(--ink);overflow:hidden}
+.signature-paper{position:absolute;inset:0;background:var(--paper)}
+.signature-marks{position:absolute;inset:0;overflow:hidden}
+.signature-entry{position:absolute;margin:0;transform-origin:center;max-height:45%}
+.signature-entry img{width:100%;height:auto;max-height:100%;object-fit:contain;-webkit-user-drag:none;user-select:none}
+.signature-page-number{position:absolute;bottom:5%;font:.6rem var(--sans);color:#172a234d}
+.poster-page .signature-page-number{left:8%}
+.detail-page .signature-page-number{right:8%}
+@media(max-width:900px){.book-stage .book-spread>#detail-page.is-signature-page{aspect-ratio:.827;min-height:0}}
