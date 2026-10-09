@@ -426,8 +426,8 @@
     }
   }
 
-  async function openProjects() {
-    if (state.busy || state.navigating || state.view !== 'collections') return;
+  async function openProjects({ continuation = false } = {}) {
+    if (state.busy || (!continuation && state.navigating) || state.view !== 'collections') return;
     activateTab('future-projects');
     state.navigating = true;
     const main = $('main-content');
@@ -738,11 +738,11 @@
     updateControls();
   }
 
-  async function swapBooks(destination, { continuation = false } = {}) {
+  async function swapBooks(destination, { continuation = false, continueTo = null } = {}) {
     if (!continuation && (state.busy || state.navigating)) return;
     const origin = state.view;
     if (!['collections', 'robotics'].includes(origin) || origin === destination) return;
-    activateTab(destination);
+    activateTab(continueTo || destination);
     state.navigating = true;
     const main = $('main-content');
     const header = document.querySelector('.site-header');
@@ -803,6 +803,9 @@
       updateControls();
       if (reducedMotion.matches) return;
       await photosReady;
+      window.addEventListener('resize', finishOnResize, { once: true });
+      if (origin === 'robotics') await ashRoboticsText(animate, () => interrupted);
+      if (interrupted) return;
 
       const viewportWidth = document.documentElement.clientWidth;
       const scrollTop = window.scrollY;
@@ -864,7 +867,6 @@
       Object.assign(hand.style, { width: `${handWidth}px`, height: `${handHeight}px` });
       hand.style.visibility = 'hidden';
       overlay.appendChild(hand);
-      window.addEventListener('resize', finishOnResize, { once: true });
       if (scrollTop) animate(header, [{ transform: 'translateY(0)' }, { transform: `translateY(${scrollTop}px)` }], { duration: 650, easing: 'ease-out' });
       const bookTransform = (pose) => `translate(${pose.x}px,${pose.y}px) rotate(${pose.angle}deg) scale(${pose.scale ?? 1})`;
       const handTransform = (book, pose, dx = 0, dy = 0, wrist = 0) => {
@@ -942,8 +944,21 @@
       state.page = 0;
       stage.classList.add('without-motion');
       stage.classList.remove('is-open', 'is-settled', 'is-closing');
-      finishNavigation(destination, animations, overlay);
-      requestAnimationFrame(() => stage.classList.remove('without-motion'));
+      if (continueTo === 'future-projects' && !interrupted && !reducedMotion.matches) {
+        state.view = 'collections';
+        state.busy = false;
+        document.body.dataset.view = 'collections';
+        Object.entries(views).forEach(([view, element]) => { element.hidden = view !== 'collections'; });
+        window.scrollTo({ top: 0, behavior: 'instant' });
+        void document.body.offsetWidth;
+        animations.forEach((animation) => animation.cancel());
+        overlay?.remove();
+        document.body.classList.remove('book-swapping');
+        await openProjects({ continuation: true });
+      } else {
+        finishNavigation(continueTo || destination, animations, overlay);
+        requestAnimationFrame(() => stage.classList.remove('without-motion'));
+      }
     }
   }
 
@@ -976,6 +991,210 @@
     };
   }
 
+  function roboticsGlyphs() {
+    const glyphs = [];
+    for (const block of document.querySelector('.robotics-intro').children) {
+      const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+      let node;
+      while ((node = walker.nextNode())) {
+        const type = getComputedStyle(node.parentElement);
+        const range = document.createRange();
+        let offset = 0;
+        for (const letter of node.textContent) {
+          range.setStart(node, offset);
+          offset += letter.length;
+          range.setEnd(node, offset);
+          const rect = range.getBoundingClientRect();
+          if (letter.trim() && rect.width && rect.height) glyphs.push({ letter, rect,
+            font: `${type.fontStyle} ${type.fontWeight} ${type.fontSize} ${type.fontFamily}`, color: type.color });
+        }
+      }
+    }
+    return glyphs;
+  }
+
+  async function ashRoboticsText(animate, isInterrupted) {
+    const intro = document.querySelector('.robotics-intro');
+    const poster = document.querySelector('.robotics-poster');
+    // Keep the photographed eyes and the intro together when leaving from a
+    // course further down the page. The book exchange continues from this pose.
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    const glyphs = roboticsGlyphs();
+    if (!glyphs.length || isInterrupted()) return;
+    const top = Math.min(...glyphs.map(({ rect }) => rect.top)) - 7;
+    const bottom = Math.max(...glyphs.map(({ rect }) => rect.bottom)) + 7;
+    const left = Math.min(...glyphs.map(({ rect }) => rect.left));
+    const right = Math.max(...glyphs.map(({ rect }) => rect.right));
+    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    const canvas = document.createElement('canvas');
+    canvas.className = 'robotics-exit-canvas';
+    canvas.setAttribute('aria-hidden', 'true');
+    canvas.width = Math.ceil(document.documentElement.clientWidth * ratio);
+    canvas.height = Math.ceil(window.innerHeight * ratio);
+    const paint = canvas.getContext('2d');
+    if (!paint) return;
+    paint.setTransform(ratio, 0, 0, ratio, 0, 0);
+    const sprites = glyphs.map((glyph, index) => {
+      const pad = 6;
+      const surface = document.createElement('canvas');
+      const w = glyph.rect.width + pad * 2, h = glyph.rect.height + pad * 2;
+      surface.width = Math.ceil(w * ratio);surface.height = Math.ceil(h * ratio);
+      const ink = surface.getContext('2d');
+      ink.setTransform(ratio, 0, 0, ratio, 0, 0);
+      ink.font = glyph.font;ink.textBaseline = 'alphabetic';ink.fillStyle = glyph.color;
+      const ascent = ink.measureText(glyph.letter).fontBoundingBoxAscent ?? glyph.rect.height * .8;
+      ink.fillText(glyph.letter, pad, pad + ascent);
+      const ash = document.createElement('canvas');
+      ash.width = surface.width;ash.height = surface.height;
+      const char = ash.getContext('2d');
+      char.drawImage(surface, 0, 0);
+      char.globalCompositeOperation = 'source-in';
+      char.fillStyle = '#4b4547';char.fillRect(0, 0, ash.width, ash.height);
+      // Break tiny gaps into the char while retaining the printed letter shape.
+      char.globalCompositeOperation = 'destination-out';
+      for (let i = 0; i < 35; i++) {
+        char.fillStyle = `rgba(0,0,0,${.15 + (i % 3) * .13})`;
+        char.fillRect(((i * 17 + index * 7) % w) * ratio, ((i * 23 + index * 11) % h) * ratio, ratio, ratio);
+      }
+      return { ...glyph, surface, ash, w, h, x: glyph.rect.left - pad, y: glyph.rect.top - pad, seed: index };
+    });
+    // The source image is 1200 × 800. Register inside its actual iris centers,
+    // including object-fit cropping and the poster's two-degree resting tilt.
+    const image = $('robotics-image');
+    const photoWidth = image.naturalWidth || 1200, photoHeight = image.naturalHeight || 800;
+    const w = poster.offsetWidth, h = poster.offsetHeight;
+    const scale = Math.max(w / photoWidth, h / photoHeight);
+    const rect = poster.getBoundingClientRect();
+    const tilt = 2 * Math.PI / 180;
+    const eyes = [[.504, .409], [.654, .374]].map(([u, v]) => {
+      const x = (w - photoWidth * scale) / 2 + photoWidth * scale * u - w / 2;
+      const y = (h - photoHeight * scale) / 2 + photoHeight * scale * v - h / 2;
+      return { x: rect.left + rect.width / 2 + x * Math.cos(tilt) - y * Math.sin(tilt),
+        y: rect.top + rect.height / 2 + x * Math.sin(tilt) + y * Math.cos(tilt) };
+    });
+    const eyeRadius = Math.max(8, Math.min(25, h * .035));
+    const glow = (x, y, radius, strength, color = '255,76,38') => {
+      const light = paint.createRadialGradient(x, y, 0, x, y, radius);
+      light.addColorStop(0, `rgba(${color},${strength})`);
+      light.addColorStop(.27, `rgba(${color},${strength * .6})`);
+      light.addColorStop(1, `rgba(${color},0)`);
+      paint.fillStyle = light;paint.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+    };
+    const lightEyes = (power, time) => {
+      paint.save();paint.globalCompositeOperation = 'screen';
+      for (const eye of eyes) {
+        // Wide reflected light pools over the eye housing, with a hot source
+        // and concentric charge rings embedded in the black photographed iris.
+        glow(eye.x, eye.y, eyeRadius * 2.5, power * .5);
+        glow(eye.x, eye.y, eyeRadius, power);
+        paint.strokeStyle = `rgba(255,139,85,${power * .75})`;paint.lineWidth = 1.4;
+        paint.beginPath();paint.ellipse(eye.x, eye.y, eyeRadius * (.63 + Math.sin(time * 11) * .04), eyeRadius * .72, tilt, 0, Math.PI * 2);paint.stroke();
+        glow(eye.x, eye.y, 5, power, '255,238,200');
+      }
+      paint.restore();
+    };
+    const duration = 1800;
+    const totalHeight = bottom - top;
+    const drawText = (time, scan = true) => {
+      const line = top + Math.min(1, time / duration) * totalHeight;
+      for (const sprite of sprites) {
+        const cut = Math.max(0, Math.min(sprite.h, line - sprite.y));
+        if (cut < sprite.h) paint.drawImage(sprite.surface, 0, cut * ratio, sprite.surface.width, (sprite.h - cut) * ratio,
+          sprite.x, sprite.y + cut, sprite.w, sprite.h - cut);
+        if (cut <= 0) continue;
+        const hitTime = (sprite.y - top) / totalHeight * duration;
+        const age = Math.max(0, (time - hitTime - 180) / 1000);
+        // Gravity acts on connected strips of a letter. Most of its form stays
+        // intact during the first drop, then little flakes drift apart.
+        const fall = 340 * age * age;
+        const dissolve = Math.max(0, (age - .55) / 1.05);
+        paint.globalAlpha = Math.max(0, 1 - dissolve);
+        const drift = Math.sin(sprite.seed * 13) * age * 5;
+        for (let y = 0; y < cut; y += 3) {
+          const strip = Math.min(3, cut - y);
+          const fracture = Math.max(0, age - .7) * Math.sin(y + sprite.seed) * 2.5;
+          paint.drawImage(sprite.ash, 0, y * ratio, sprite.ash.width, strip * ratio,
+            sprite.x + drift, sprite.y + y + fall + fracture, sprite.w, strip);
+        }
+        paint.globalAlpha = 1;
+        if (age > .08 && age < 1.4 && sprite.seed % 2 === 0) {
+          // Fine loose cinders shed from the connected letter as it drops.
+          for (let i = 0; i < 3; i++) {
+            const life = (age * .8 + i * .31) % 1;
+            paint.fillStyle = `rgba(61,53,49,${(1 - life) * (1 - Math.min(1, age / 1.4)) * .65})`;
+            paint.fillRect(sprite.x + sprite.w * .5 + Math.sin(sprite.seed + i * 23) * life * 22,
+              sprite.y + cut * .5 + fall + life * 35, .8 + i * .3, .9 + i * .25);
+          }
+        }
+        if (scan && cut < sprite.h) {
+          paint.save();paint.beginPath();paint.rect(sprite.x, line - 4, sprite.w, 8);paint.clip();
+          paint.globalCompositeOperation = 'screen';
+          paint.shadowColor = '#ff5a24';paint.shadowBlur = 12;
+          paint.drawImage(sprite.ash, sprite.x, sprite.y, sprite.w, sprite.h);
+          paint.restore();
+        }
+      }
+      return line;
+    };
+    const beam = (eye, target, time) => {
+      paint.save();paint.globalCompositeOperation = 'screen';paint.lineCap = 'round';
+      // A thin bright core inside a soft illuminated cone, anchored in the eye.
+      paint.beginPath();paint.moveTo(eye.x, eye.y);paint.lineTo(target.x - 5, target.y - 2);paint.lineTo(target.x + 5, target.y + 2);paint.closePath();
+      const volume = paint.createLinearGradient(eye.x, eye.y, target.x, target.y);
+      volume.addColorStop(0, 'rgba(255,80,35,.12)');volume.addColorStop(1, 'rgba(255,75,25,.04)');
+      paint.fillStyle = volume;paint.fill();
+      for (const [width, alpha, color] of [[8, .13, '255,65,28'], [3, .5, '255,86,45'], [.9, .95, '255,228,183']]) {
+        paint.lineWidth = width;paint.strokeStyle = `rgba(${color},${alpha})`;
+        paint.beginPath();paint.moveTo(eye.x, eye.y);paint.lineTo(target.x, target.y);paint.stroke();
+      }
+      glow(target.x, target.y, 23, .85);
+      for (let i = 0; i < 8; i++) {
+        const life = (time * .012 + i * .137) % 1;
+        paint.fillStyle = `rgba(255,173,79,${1 - life})`;
+        paint.fillRect(target.x + Math.sin(i * 19) * life * 24, target.y - life * (14 + i * 4), 1.3, 2.1);
+      }
+      paint.restore();
+    };
+    let frame;
+    const motion = async (ms, phase, render) => {
+      if (isInterrupted()) return;
+      canvas.dataset.phase = phase;
+      const clock = animate(canvas, [{ opacity: 1 }, { opacity: 1 }], { duration: ms, easing: 'linear' });
+      const draw = () => {
+        paint.clearRect(0, 0, canvas.width / ratio, canvas.height / ratio);
+        render(Math.min(1, Number(clock.currentTime || 0) / ms));
+        if (clock.playState === 'running' && !isInterrupted()) frame = requestAnimationFrame(draw);
+      };
+      draw();
+      try { await clock.finished; } finally { cancelAnimationFrame(frame); }
+      if (!isInterrupted()) { paint.clearRect(0, 0, canvas.width / ratio, canvas.height / ratio);render(1); }
+    };
+    document.body.appendChild(canvas);
+    intro.style.visibility = 'hidden';
+    try {
+      await motion(450, 'charge-eyes', progress => {
+        drawText(0, false);
+        lightEyes(progress * progress * (.88 + Math.sin(progress * 34) * .12), progress);
+      });
+      await motion(duration, 'laser-scan', progress => {
+        const time = progress * duration;
+        const line = drawText(time);
+        const target = { x: left + (right - left) * (.5 + .48 * Math.sin(progress * Math.PI * 20)), y: line };
+        for (const eye of eyes) beam(eye, target, time);
+        lightEyes(1, time / 1000);
+      });
+      await motion(1100, 'falling-ash', progress => {
+        drawText(duration + progress * 1100, false);
+        lightEyes(Math.max(0, 1 - progress * 5), 1.8 + progress);
+      });
+    } finally {
+      cancelAnimationFrame(frame);
+      canvas.remove();
+      // The outgoing intro remains empty until its view is hidden by navigation.
+      // swapBooks restores its original style together with the book placement.
+    }
+  }
+
   function mapWrinkledInk(source, destination, relief, ratio) {
     const { width, height, data } = source;
     for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
@@ -1001,25 +1220,7 @@
     const [paperTexture, charTexture] = await loadPaperMaterials();
     if (isInterrupted()) return;
     const intro = document.querySelector('.robotics-intro');
-    const glyphs = [];
-    // Native ranges preserve the final font spacing without changing the DOM.
-    for (const block of intro.children) {
-      const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
-      let node;
-      while ((node = walker.nextNode())) {
-        const type = getComputedStyle(node.parentElement);
-        const range = document.createRange();
-        let offset = 0;
-        for (const letter of node.textContent) {
-          range.setStart(node, offset);
-          offset += letter.length;
-          range.setEnd(node, offset);
-          const rect = range.getBoundingClientRect();
-          if (!letter.trim() || !rect.width || !rect.height) continue;
-          glyphs.push({ letter, rect, font: `${type.fontStyle} ${type.fontWeight} ${type.fontSize} ${type.fontFamily}`, color: type.color });
-        }
-      }
-    }
+    const glyphs = roboticsGlyphs();
     if (!glyphs.length) return;
     const left = Math.min(...glyphs.map(({ rect }) => rect.left)) - 18;
     const top = Math.min(...glyphs.map(({ rect }) => rect.top)) - 18;
@@ -1093,6 +1294,9 @@
     const nozzle = { x: ignitionPoint.x, y: ignitionPoint.y + 12 };
     const lighterAt = (x, y, angle = lighterAngle) => `translate(${x - lighterWidth * .088}px,${y - lighterHeight * .245}px) rotate(${angle}deg)`;
     const lighterAway = lighterAt(window.innerWidth + lighterWidth * .15, window.innerHeight + 100, 60);
+    // Withdraw along a straight diagonal below the table, with a relaxed wrist.
+    const lighterExit = lighterAt(nozzle.x + Math.max(180, (window.innerHeight + lighterHeight * .12 - nozzle.y) * .6),
+      window.innerHeight + lighterHeight * .12, lighterAngle + 5);
     lighter.style.transform = lighterAway;
     // A coherent, uneven burn travels from the lighter's contact point.
     const burnField = (u, v) => clamp(.04 + Math.hypot(u - ignition.u, (v - ignition.v) * 1.1) * .58
@@ -1392,31 +1596,33 @@
         animate(hand, [{ transform: handAt(0) }, { transform: handAt(5, -2), offset: .23 }, { transform: handAt(22, -7) }], { duration: 720, easing: 'cubic-bezier(.3,.65,.2,1)' }).finished
       ]);
       if (isInterrupted()) return;
-      // A short extra opening and wrist flick provide the paper's launch impulse.
+      // Hold the half-open cover while the sheet slides out of its fore-edge.
+      // There is no extra opening impulse or ballistic launch.
+      const exit = coverGrip(22);
+      const paperOrigin = { x: exit.x - width * .4, y: exit.y - height * .13 };
       await Promise.all([
-        animate(front, [{ transform: 'rotateY(22deg)' }, { transform: 'rotateY(28deg)' }], { duration: 180, easing: 'cubic-bezier(.5,0,.8,.4)' }).finished,
-        animate(hand, [{ transform: handAt(22, -7) }, { transform: handAt(28, -12) }], { duration: 180, easing: 'cubic-bezier(.5,0,.8,.4)' }).finished
-      ]);
-      if (isInterrupted()) return;
-      gripHand(false);
-      const exit = coverGrip(28);
-      const paperOrigin = { x: exit.x - width * .12, y: exit.y - height * .03 };
-      const closing = animate(front, [{ transform: 'rotateY(28deg)' }, { transform: 'rotateY(20deg)', offset: .22 },
-        { transform: 'rotateY(9deg)', offset: .65 }, { transform: 'rotateY(0deg)' }], { duration: 780, easing: 'cubic-bezier(.3,.2,.2,1)' }).finished;
-      await Promise.all([
-        rasterMotion(1000, (progress) => {
-          clear();const ease = 1 - Math.pow(1 - progress, 3);
-          context.globalAlpha = clamp(progress * 10);
+        rasterMotion(1500, (progress) => {
+          clear();const ease = progress * progress * (3 - 2 * progress);
+          context.globalAlpha = clamp(progress * 5);
           renderSheet(base.surface, { x: paperOrigin.x + (left - paperOrigin.x) * ease,
-            y: paperOrigin.y + (top - paperOrigin.y) * ease - Math.sin(progress * Math.PI) * 75,
-            sx: .12 + .88 * ease, sy: .06 + .94 * ease, angle: (1 - ease) * -12 - Math.sin(progress * Math.PI) * 6 }, 1 - .4 * ease);
+            y: paperOrigin.y + (top - paperOrigin.y) * ease - Math.sin(progress * Math.PI) * 12,
+            sx: .4 + .6 * ease, sy: .22 + .78 * ease, angle: (1 - ease) * -5 }, 1 - .4 * ease);
           context.globalAlpha = 1;
-        }, 'flick-paper'),
-        animate(hand, [{ transform: handAt(28, -12) }, { transform: handAt(20, 2, 55, -35), offset: .35 }, { transform: handAt(0, 10, handWidth, -35) }], { duration: 430, easing: 'cubic-bezier(.45,0,.8,.4)' }).finished,
-        closing
+        }, 'slide-paper'),
+        animate(front, [{ transform: 'rotateY(22deg)' }, { transform: 'rotateY(22deg)' }], { duration: 1500 }).finished,
+        animate(hand, [{ transform: handAt(22, -7) }, { transform: handAt(22, -5) }], { duration: 1500 }).finished
       ]);
       if (isInterrupted()) return;
-      await rasterMotion(280, (progress) => { clear();renderSheet(base.surface, flat, .6 - .12 * progress); }, 'unfold-paper');
+      await Promise.all([
+        rasterMotion(780, (progress) => { clear();renderSheet(base.surface, flat, .6 - .12 * progress); }, 'unfold-paper'),
+        animate(front, [{ transform: 'rotateY(22deg)' }, { transform: 'rotateY(9deg)', offset: .65 },
+          { transform: 'rotateY(0deg)' }], { duration: 780, easing: 'cubic-bezier(.3,.2,.2,1)' }).finished,
+        animate(hand, [{ transform: handAt(22, -5) }, { transform: handAt(9, 1), offset: .65 },
+          { transform: handAt(0, 3) }], { duration: 780, easing: 'cubic-bezier(.3,.2,.2,1)' }).finished
+      ]);
+      gripHand(false);
+      await animate(hand, [{ transform: handAt(0, 3) }, { transform: handAt(0, 9, handWidth, 160) }],
+        { duration: 650, easing: 'ease-in-out' }).finished;
       if (isInterrupted()) return;
       await lighterReady;
       if (isInterrupted()) return;
@@ -1448,7 +1654,7 @@
         }, 'strike-lighter')
       ]);
       if (isInterrupted()) return;
-      await rasterMotion(800, (progress) => {
+      await rasterMotion(1050, (progress) => {
         // The pilot touches the torn edge first. A small char patch then takes
         // over, and only that flame propagates across the rest of the sheet.
         if (progress > .35) renderBurn((progress - .35) / .65 * .055, .26 + progress * .8);
@@ -1459,15 +1665,15 @@
       if (isInterrupted()) return;
       await Promise.all([
         animate(lighter, [{ transform: lighterAt(nozzle.x, nozzle.y), opacity: 1 },
-          { transform: lighterAt(nozzle.x + 36, nozzle.y + 45, 54), opacity: 1, offset: .3 },
-          { transform: lighterAway, opacity: 1 }], { duration: 650, easing: 'cubic-bezier(.45,0,.8,.4)' }).finished,
-        rasterMotion(3200, (progress) => renderBurn(.055 + progress * 1.085, 1.06 + progress * 3.2), 'burn-paper')
+          { transform: lighterAt(nozzle.x, nozzle.y), opacity: 1, offset: .15 },
+          { transform: lighterExit, opacity: 1 }], { duration: 1100, easing: 'ease-in-out' }).finished,
+        rasterMotion(5000, (progress) => renderBurn(.055 + progress * 1.085, 1.31 + progress * 5), 'burn-paper')
       ]);
       if (isInterrupted()) return;
       await Promise.all([
         rasterMotion(300, (progress) => {
           clear();context.drawImage(printed.surface, left, top, width, height);
-          renderSmoke(1.14 + progress * .5, 4.26 + progress * .3);
+          renderSmoke(1.14 + progress * .5, 6.31 + progress * .3);
         }, 'cooled-print'),
         animate(depth, [{ opacity: 1 }, { opacity: 0 }], { duration: 300, easing: 'ease-out' }).finished
       ]);
@@ -1554,6 +1760,9 @@
     if (state.view === 'collections') {
       event.preventDefault();
       openProjects();
+    } else if (state.view === 'robotics') {
+      event.preventDefault();
+      swapBooks('collections', { continueTo: 'future-projects' });
     }
   });
   document.querySelectorAll('.nav-link[data-view="collections"], .wordmark').forEach((link) => {

@@ -171,6 +171,7 @@ body.page-transitioning{overflow:hidden;transition:none}
 .robotics-burn-canvas{position:absolute;inset:0;width:100%;height:100%;z-index:4;pointer-events:none}
 .robotics-lighter-hand{position:absolute;left:0;top:0;z-index:6;transform-origin:8.8% 24.5%;filter:drop-shadow(2px 8px 7px #27252226);will-change:transform;pointer-events:none}
 .robotics-lighter-hand img{width:100%;height:100%;object-fit:contain}
+.robotics-exit-canvas{position:fixed;inset:0;width:100%;height:100%;z-index:9;pointer-events:none}
 /* The mobile poster underneath the cover must not become a second book
    when the real cover is carried out of its original spread. */
 .book-swapping .book-stage .book-spread>.paper-page{visibility:hidden}
