@@ -114,6 +114,8 @@ test('preview victory follows every phase and never opens approvals', async () =
   assert.ok(standing.length >= 2);
   assert.ok(standing.every(d => d[6] + d[8] === 0), 'opaque sprite bottoms stay on the foot anchor during idle');
   assert.ok(standing.filter(d => d[0].src.includes('pikachu-back')).every(d => d[1] === 5 && d[2] === 8), 'Pikachu keeps the standing pose');
+  assert.ok(standing.filter(d => d[0].src.includes('pikachu-back')).every(d => d.transform.y + d[6] >= 80), 'Pikachu clears the enemy health panel');
+  assert.ok(standing.filter(d => d[0].src.includes('mascot-sheet')).every(d => d.transform.y + d[6] >= 26), 'The Don clears the top controls');
   f.nodes.get('battle-password').value = 'nick'; const submitted = f.nodes.get('battle-password-form').emit('submit');
   await f.finish(); await submitted;
   assert.ok(f.phases.includes('faint-enemy')); assert.ok(!f.phases.includes('faint-player'));

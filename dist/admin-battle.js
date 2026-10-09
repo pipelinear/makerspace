@@ -229,14 +229,14 @@
   function drawBattle(context, W, H, time, p) {
     const active = run;
     const battleH = Math.max(96, H - active.dialogHeight / active.scale);
-    const player = { x: W * .25, y: battleH * .91, size: Math.min(active.width < 700 ? 104 : 96, battleH * .6) };
+    const player = { x: W * .25, y: battleH * .91, size: Math.min(active.width < 700 ? 104 : 96, battleH * .45, Math.max(30, battleH * .91 - 80)) };
     if (active.phase === 'takeover') {
       const progress = smooth(p);
       player.x = lerp((active.landing.x - 8) / active.scale, player.x, progress);
       player.y = lerp((active.landing.y + 9) / active.scale, player.y, progress);
       player.size = lerp(96 / active.scale, player.size, progress);
     }
-    const enemy = { x: W * .75, y: battleH * .54, size: Math.min(active.width < 700 ? 116 : 108, battleH * .54) };
+    const enemy = { x: W * .75, y: battleH * .54, size: Math.min(active.width < 700 ? 116 : 108, battleH * .38, Math.max(24, battleH * .54 - 26)) };
     background(context, W, H, battleH);
     shadow(context, player.x, player.y, player.size * .32); shadow(context, enemy.x, enemy.y, enemy.size * .28);
     const breathe = motion.matches ? 1 : 1 + Math.sin(time * Math.PI / 2.6) * .008;
