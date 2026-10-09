@@ -485,6 +485,11 @@
       preview.classList.add('project-opening-preview');
       back.className = 'paper-page project-opening-inside';
       back.replaceChildren(preview);
+      // A chained handoff freezes the closed cover to restore its layout.
+      // Flush that closed pose before enabling the same hinge used on direct entry.
+      void cover.offsetWidth;
+      stage.classList.remove('without-motion');
+      void cover.offsetWidth;
       stage.classList.add('is-project-opening');
       void cover.offsetWidth;
       // Use the original cover, parent, perspective and 1100ms opening motion.
@@ -791,13 +796,19 @@
       relaxedPhoto.alt = '';
       relaxedPhoto.decoding = 'async';
       hand.appendChild(relaxedPhoto);
+      const flatHand = origin === 'robotics' ? document.createElement('div') : null;
+      if (flatHand) {
+        flatHand.className = 'robotics-slam-hand';
+        flatHand.innerHTML = '<img src="assets/book-hand-flat.png" alt="" decoding="async">';
+      }
       let isGripping = false;
       const gripHand = (gripping) => {
         animate(handPhoto, [{ opacity: Number(isGripping) }, { opacity: Number(gripping) }], { duration: 110, easing: 'ease-out' });
         animate(relaxedPhoto, [{ opacity: Number(!isGripping) }, { opacity: Number(!gripping) }], { duration: 110, easing: 'ease-out' });
         isGripping = gripping;
       };
-      const photosReady = Promise.all([preparePictures(hand), preparePictures(document.querySelector('.robotics-poster')), loadPaperMaterials()]);
+      const photosReady = Promise.all([preparePictures(hand), flatHand ? preparePictures(flatHand) : Promise.resolve(),
+        preparePictures(document.querySelector('.robotics-poster')), loadPaperMaterials()]);
       if (origin === 'collections' && state.open) await closeBook({ forNavigation: true });
       state.busy = true;
       updateControls();
@@ -831,8 +842,11 @@
 
       const takeBook = (book, view) => {
         const rect = book.getBoundingClientRect();
-        const width = book.offsetWidth;
-        const height = book.offsetHeight;
+        // Preserve subpixel dimensions. Rounding to offsetWidth/offsetHeight
+        // resampled the poster photo when it returned to its original layout.
+        const computed = getComputedStyle(book);
+        const width = parseFloat(computed.width) || book.offsetWidth;
+        const height = parseFloat(computed.height) || book.offsetHeight;
         const angle = view === 'robotics' ? 2 : 0;
         const placeholder = view === 'robotics' ? document.createElement('div') : document.createComment('Collection book home');
         if (view === 'robotics') {
@@ -881,20 +895,59 @@
         [hand, poses.map((pose) => ({ transform: handTransform(book, pose), offset: pose.offset }))]
       ], duration, easing);
 
-      // Slide, reach, and preload the wrist before a quick upward/rightward pull.
-      const bench = { ...outgoing.pose, x: Math.max(outgoing.pose.x, viewportWidth - outgoing.width - Math.max(22, viewportWidth * .035)), y: outgoing.pose.y + 5, angle: -2 };
-      await play([[outgoing.carrier, [{ transform: bookTransform(outgoing.pose) }, { transform: bookTransform(bench) }]]], 520);
-      hand.style.visibility = 'visible';
-      await play([[hand, [
-        { transform: handTransform(outgoing, bench, handWidth, -100, -12) },
-        { transform: handTransform(outgoing, bench, -5, 3, 2), offset: .82 },
-        { transform: handTransform(outgoing, bench) }
-      ]]], 470);
-      gripHand(true);
-      const grip = { ...bench, x: bench.x - 6, y: bench.y - 4, angle: -5 };
-      await handleBook(outgoing, [bench, grip], 170);
-      const removed = { x: viewportWidth + outgoing.width * .6, y: bench.y - 190, angle: -23, scale: .96 };
-      await handleBook(outgoing, [grip, { ...grip, x: grip.x + 28, y: grip.y - 16, angle: -8, offset: .25 }, removed], 510, 'cubic-bezier(.6,.03,.85,.5)');
+      if (flatHand) {
+        // A flat palm drops onto the cover, compresses on impact, and keeps
+        // frictional contact while dragging the book along the tabletop.
+        const palmWidth = Math.max(outgoing.width * 1.95, (viewportWidth + 140 - (outgoing.pose.x + outgoing.width * .55)) / .7);
+        const palmHeight = palmWidth / 3;
+        Object.assign(flatHand.style, { width: `${palmWidth}px`, height: `${palmHeight}px` });
+        overlay.appendChild(flatHand);
+        const palmAt = (pose, dx = 0, dy = 0, lift = 1) => {
+          const angle = pose.angle * Math.PI / 180;
+          const x = pose.x + outgoing.width / 2 + outgoing.width * .05 * Math.cos(angle) + outgoing.height * .08 * Math.sin(angle);
+          const y = pose.y + outgoing.height / 2 + outgoing.width * .05 * Math.sin(angle) - outgoing.height * .08 * Math.cos(angle);
+          return `translate(${x - palmWidth * .26 + dx}px,${y - palmHeight * .5 + dy}px) rotate(${pose.angle}deg) scale(${lift})`;
+        };
+        const rest = outgoing.pose;
+        overlay.dataset.phase = 'palm-approach';
+        await play([[flatHand, [
+          { transform: palmAt(rest, palmWidth, -180, 1.08), filter: 'drop-shadow(0 28px 16px #172a2340)' },
+          { transform: palmAt(rest, 0, -75, 1.08), filter: 'drop-shadow(0 28px 16px #172a2340)' }
+        ]]], 400, 'cubic-bezier(.22,.75,.3,1)');
+        overlay.dataset.phase = 'palm-slam';
+        await play([[flatHand, [
+          { transform: palmAt(rest, 0, -75, 1.08), filter: 'drop-shadow(0 28px 16px #172a2340)' },
+          { transform: palmAt(rest, 0, 2, .99), filter: 'drop-shadow(1px 3px 2px #172a2344)' }
+        ]]], 145, 'cubic-bezier(.65,0,1,.65)');
+        const pressed = { ...rest, y: rest.y + 3, angle: rest.angle - .7 };
+        await play([
+          [outgoing.carrier, [{ transform: bookTransform(rest) }, { transform: bookTransform(pressed), offset: .35 }, { transform: bookTransform(rest) }]],
+          [flatHand, [{ transform: palmAt(rest, 0, 2, .99) }, { transform: palmAt(pressed, 0, 0, 1.005), offset: .35 }, { transform: palmAt(rest) }]]
+        ], 160, 'ease-out');
+        overlay.dataset.phase = 'palm-drag';
+        const loaded = { ...rest, x: rest.x - 10, y: rest.y + 2, angle: rest.angle - 1 };
+        const removed = { ...rest, x: viewportWidth + outgoing.width * .65, y: rest.y + 85, angle: -7 };
+        await play([
+          [outgoing.carrier, [rest, loaded, removed].map((pose, i) => ({ transform: bookTransform(pose), offset: [0, .12, 1][i] }))],
+          [flatHand, [rest, loaded, removed].map((pose, i) => ({ transform: palmAt(pose), offset: [0, .12, 1][i] }))]
+        ], 650, 'cubic-bezier(.35,.08,.7,.9)');
+        flatHand.remove();
+      } else {
+        // Keep the original Collection pinch and pull choreography.
+        const bench = { ...outgoing.pose, x: Math.max(outgoing.pose.x, viewportWidth - outgoing.width - Math.max(22, viewportWidth * .035)), y: outgoing.pose.y + 5, angle: -2 };
+        await play([[outgoing.carrier, [{ transform: bookTransform(outgoing.pose) }, { transform: bookTransform(bench) }]]], 520);
+        hand.style.visibility = 'visible';
+        await play([[hand, [
+          { transform: handTransform(outgoing, bench, handWidth, -100, -12) },
+          { transform: handTransform(outgoing, bench, -5, 3, 2), offset: .82 },
+          { transform: handTransform(outgoing, bench) }
+        ]]], 470);
+        gripHand(true);
+        const grip = { ...bench, x: bench.x - 6, y: bench.y - 4, angle: -5 };
+        await handleBook(outgoing, [bench, grip], 170);
+        const removed = { x: viewportWidth + outgoing.width * .6, y: bench.y - 190, angle: -23, scale: .96 };
+        await handleBook(outgoing, [grip, { ...grip, x: grip.x + 28, y: grip.y - 16, angle: -8, offset: .25 }, removed], 510, 'cubic-bezier(.6,.03,.85,.5)');
+      }
       outgoing.carrier.style.opacity = '0';
 
       // The surrounding course arrives while the hand and removed book are offscreen.
@@ -906,6 +959,8 @@
       const arrive = { x: viewportWidth + incoming.width * .25, y: rest.y - 290, angle: 17, scale: 1.02 };
       const release = { x: rest.x + 15, y: rest.y - 74, angle: -9, scale: 1.02 };
       incoming.carrier.style.opacity = '1';
+      hand.style.visibility = 'visible';
+      if (flatHand) gripHand(true);
       await handleBook(incoming, [arrive, { x: rest.x + incoming.width * .22, y: rest.y - 160, angle: 9, scale: 1.03, offset: .62 }, release], 470, 'cubic-bezier(.35,.05,.75,.65)');
       gripHand(false);
       const landing = { x: rest.x + 9, y: rest.y + 3, angle: -4.5, scale: 1 };
@@ -937,7 +992,12 @@
       if (!interrupted) console.warn('Book exchange finished without its remaining motion.', error);
     } finally {
       window.removeEventListener('resize', finishOnResize);
-      placements.forEach(({ book, placeholder, style }) => { placeholder.replaceWith(book); restoreStyle(book, style); });
+      stage.classList.add('without-motion');
+      // Release the finished hinge overrides before restoring native transforms.
+      // Reparenting an image while rotateY(0) still overrides its resting tilt
+      // creates a separate raster pose, then another repaint when canceled.
+      animations.forEach((animation) => animation.cancel());
+      placements.forEach(({ book, placeholder, style }) => { restoreStyle(book, style); placeholder.replaceWith(book); });
       restoreStyle(roboticsIntro, introStyle);
       [sourceView, targetView].forEach((view, index) => { restoreStyle(view, rootStyles[index]); view.inert = false; });
       state.open = false;
@@ -1016,50 +1076,72 @@
   async function ashRoboticsText(animate, isInterrupted) {
     const intro = document.querySelector('.robotics-intro');
     const poster = document.querySelector('.robotics-poster');
-    // Keep the photographed eyes and the intro together when leaving from a
-    // course further down the page. The book exchange continues from this pose.
     window.scrollTo({ top: 0, behavior: 'instant' });
     const glyphs = roboticsGlyphs();
     if (!glyphs.length || isInterrupted()) return;
-    const top = Math.min(...glyphs.map(({ rect }) => rect.top)) - 7;
-    const bottom = Math.max(...glyphs.map(({ rect }) => rect.bottom)) + 7;
-    const left = Math.min(...glyphs.map(({ rect }) => rect.left));
-    const right = Math.max(...glyphs.map(({ rect }) => rect.right));
+    const left = Math.floor(Math.min(...glyphs.map(({ rect }) => rect.left))) - 8;
+    const top = Math.floor(Math.min(...glyphs.map(({ rect }) => rect.top))) - 8;
+    const right = Math.ceil(Math.max(...glyphs.map(({ rect }) => rect.right))) + 8;
+    const bottom = Math.ceil(Math.max(...glyphs.map(({ rect }) => rect.bottom))) + 10;
+    const width = right - left, height = bottom - top;
     const ratio = Math.min(window.devicePixelRatio || 1, 2);
     const canvas = document.createElement('canvas');
-    canvas.className = 'robotics-exit-canvas';
-    canvas.setAttribute('aria-hidden', 'true');
+    canvas.className = 'robotics-exit-canvas';canvas.setAttribute('aria-hidden', 'true');
     canvas.width = Math.ceil(document.documentElement.clientWidth * ratio);
     canvas.height = Math.ceil(window.innerHeight * ratio);
     const paint = canvas.getContext('2d');
     if (!paint) return;
     paint.setTransform(ratio, 0, 0, ratio, 0, 0);
-    const sprites = glyphs.map((glyph, index) => {
-      const pad = 6;
-      const surface = document.createElement('canvas');
-      const w = glyph.rect.width + pad * 2, h = glyph.rect.height + pad * 2;
-      surface.width = Math.ceil(w * ratio);surface.height = Math.ceil(h * ratio);
-      const ink = surface.getContext('2d');
-      ink.setTransform(ratio, 0, 0, ratio, 0, 0);
-      ink.font = glyph.font;ink.textBaseline = 'alphabetic';ink.fillStyle = glyph.color;
-      const ascent = ink.measureText(glyph.letter).fontBoundingBoxAscent ?? glyph.rect.height * .8;
-      ink.fillText(glyph.letter, pad, pad + ascent);
-      const ash = document.createElement('canvas');
-      ash.width = surface.width;ash.height = surface.height;
-      const char = ash.getContext('2d');
-      char.drawImage(surface, 0, 0);
-      char.globalCompositeOperation = 'source-in';
-      char.fillStyle = '#4b4547';char.fillRect(0, 0, ash.width, ash.height);
-      // Break tiny gaps into the char while retaining the printed letter shape.
-      char.globalCompositeOperation = 'destination-out';
-      for (let i = 0; i < 35; i++) {
-        char.fillStyle = `rgba(0,0,0,${.15 + (i % 3) * .13})`;
-        char.fillRect(((i * 17 + index * 7) % w) * ratio, ((i * 23 + index * 11) % h) * ratio, ratio, ratio);
-      }
-      return { ...glyph, surface, ash, w, h, x: glyph.rect.left - pad, y: glyph.rect.top - pad, seed: index };
-    });
-    // The source image is 1200 × 800. Register inside its actual iris centers,
-    // including object-fit cropping and the poster's two-degree resting tilt.
+    const eyeLight = document.createElement('canvas');
+    eyeLight.className = 'robotics-eye-light';eyeLight.setAttribute('aria-hidden', 'true');
+    eyeLight.width = canvas.width;eyeLight.height = canvas.height;
+    const eyePaint = eyeLight.getContext('2d');
+    eyePaint.setTransform(ratio, 0, 0, ratio, 0, 0);
+
+    // Only native lettering is sampled. This ink-only canvas remains readable
+    // under file://, and the outgoing pixels themselves become individual dust.
+    const ink = document.createElement('canvas');ink.width = width;ink.height = height;
+    const inkPaint = ink.getContext('2d', { willReadFrequently: true });
+    inkPaint.textBaseline = 'alphabetic';
+    for (const glyph of glyphs) {
+      inkPaint.font = glyph.font;inkPaint.fillStyle = glyph.color;
+      const ascent = inkPaint.measureText(glyph.letter).fontBoundingBoxAscent ?? glyph.rect.height * .8;
+      inkPaint.fillText(glyph.letter, glyph.rect.left - left, glyph.rect.top - top + ascent);
+    }
+    const courseLink = intro.querySelector('.text-link');
+    if (courseLink) {
+      const rect = courseLink.getBoundingClientRect();
+      inkPaint.fillStyle = getComputedStyle(courseLink).color;
+      inkPaint.fillRect(rect.left - left, rect.bottom - top + 3, rect.width, 1);
+    }
+    const original = inkPaint.getImageData(0, 0, width, height);
+    const remaining = inkPaint.createImageData(width, height);
+    const samples = [], dust = [];
+    const duration = 2200, passes = 18;
+    const hash = (x, y) => {
+      let n = Math.imul(x | 0, 374761393) ^ Math.imul(y | 0, 668265263);
+      n = Math.imul(n ^ (n >>> 13), 1274126177);
+      return ((n ^ (n >>> 16)) >>> 0) / 4294967295;
+    };
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+      const offset = (y * width + x) * 4;
+      if (!original.data[offset + 3]) continue;
+      const row = Math.min(passes - 1, Math.floor(y / height * passes));
+      const scanX = row % 2 ? 1 - x / width : x / width;
+      const at = (row + scanX) / passes * duration + (hash(x, y) - .5) * 18;
+      samples.push({ offset, at });
+      if (x % 2 || y % 2 || original.data[offset + 3] < 50) continue;
+      const seed = hash(x + 19, y + 37);
+      dust.push({ x: left + x, y: top + y, at,
+        vx: (seed - .5) * 100, vy: -18 - hash(x + 3, y) * 55,
+        life: .8 + hash(x, y + 9) * .7,
+        size: .45 + hash(y, x) * 1.1,
+        shade: 48 + Math.round(hash(x + 4, y + 11) * 45),
+        alpha: original.data[offset + 3] / 255 });
+    }
+    canvas.dataset.particleCount = String(dust.length);
+    canvas.dataset.pixelCount = String(samples.length);
+
     const image = $('robotics-image');
     const photoWidth = image.naturalWidth || 1200, photoHeight = image.naturalHeight || 800;
     const w = poster.offsetWidth, h = poster.offsetHeight;
@@ -1072,88 +1154,75 @@
       return { x: rect.left + rect.width / 2 + x * Math.cos(tilt) - y * Math.sin(tilt),
         y: rect.top + rect.height / 2 + x * Math.sin(tilt) + y * Math.cos(tilt) };
     });
-    const eyeRadius = Math.max(8, Math.min(25, h * .035));
-    const glow = (x, y, radius, strength, color = '255,76,38') => {
-      const light = paint.createRadialGradient(x, y, 0, x, y, radius);
-      light.addColorStop(0, `rgba(${color},${strength})`);
-      light.addColorStop(.27, `rgba(${color},${strength * .6})`);
-      light.addColorStop(1, `rgba(${color},0)`);
-      paint.fillStyle = light;paint.fillRect(x - radius, y - radius, radius * 2, radius * 2);
-    };
+    const radius = Math.max(8, Math.min(22, h * .029));
+    const emission = document.createElement('canvas');emission.width = emission.height = 80;
+    const lightPaint = emission.getContext('2d');
+    const lightPixels = lightPaint.createImageData(80, 80);
     const lightEyes = (power, time) => {
-      paint.save();paint.globalCompositeOperation = 'screen';
-      for (const eye of eyes) {
-        // Wide reflected light pools over the eye housing, with a hot source
-        // and concentric charge rings embedded in the black photographed iris.
-        glow(eye.x, eye.y, eyeRadius * 2.5, power * .5);
-        glow(eye.x, eye.y, eyeRadius, power);
-        paint.strokeStyle = `rgba(255,139,85,${power * .75})`;paint.lineWidth = 1.4;
-        paint.beginPath();paint.ellipse(eye.x, eye.y, eyeRadius * (.63 + Math.sin(time * 11) * .04), eyeRadius * .72, tilt, 0, Math.PI * 2);paint.stroke();
-        glow(eye.x, eye.y, 5, power, '255,238,200');
+      // Emissive lens pixels add radiance to the existing photographed eyes.
+      // No replacement iris, outline ring, or dark opacity disk is drawn.
+      const energy = power * (.96 + Math.sin(time * 29) * .04);
+      for (let y = 0; y < 80; y++) for (let x = 0; x < 80; x++) {
+        const u = (x - 40) / 40, v = (y - 40) / 40;
+        const distance = u * u + v * v * 1.13;
+        const core = Math.exp(-distance * 95) * energy;
+        const lens = Math.exp(-distance * 12) * energy;
+        const bloom = Math.exp(-distance * 3.4) * energy;
+        const glint = Math.exp(-Math.abs(v) * 75 - Math.abs(u) * 5) * energy * .34;
+        const i = (y * 80 + x) * 4;
+        lightPixels.data[i] = Math.min(255, (core * 2.6 + lens + bloom * .36 + glint) * 255);
+        lightPixels.data[i + 1] = Math.min(255, (core * 2.4 + lens * .36 + bloom * .09 + glint * .7) * 255);
+        lightPixels.data[i + 2] = Math.min(255, (core * 1.8 + lens * .06 + bloom * .025 + glint * .28) * 255);
+        lightPixels.data[i + 3] = 255;
       }
-      paint.restore();
+      lightPaint.putImageData(lightPixels, 0, 0);
+      for (const eye of eyes) eyePaint.drawImage(emission, eye.x - radius * 2.3, eye.y - radius * 2.3, radius * 4.6, radius * 4.6);
     };
-    const duration = 1800;
-    const totalHeight = bottom - top;
-    const drawText = (time, scan = true) => {
-      const line = top + Math.min(1, time / duration) * totalHeight;
-      for (const sprite of sprites) {
-        const cut = Math.max(0, Math.min(sprite.h, line - sprite.y));
-        if (cut < sprite.h) paint.drawImage(sprite.surface, 0, cut * ratio, sprite.surface.width, (sprite.h - cut) * ratio,
-          sprite.x, sprite.y + cut, sprite.w, sprite.h - cut);
-        if (cut <= 0) continue;
-        const hitTime = (sprite.y - top) / totalHeight * duration;
-        const age = Math.max(0, (time - hitTime - 180) / 1000);
-        // Gravity acts on connected strips of a letter. Most of its form stays
-        // intact during the first drop, then little flakes drift apart.
-        const fall = 340 * age * age;
-        const dissolve = Math.max(0, (age - .55) / 1.05);
-        paint.globalAlpha = Math.max(0, 1 - dissolve);
-        const drift = Math.sin(sprite.seed * 13) * age * 5;
-        for (let y = 0; y < cut; y += 3) {
-          const strip = Math.min(3, cut - y);
-          const fracture = Math.max(0, age - .7) * Math.sin(y + sprite.seed) * 2.5;
-          paint.drawImage(sprite.ash, 0, y * ratio, sprite.ash.width, strip * ratio,
-            sprite.x + drift, sprite.y + y + fall + fracture, sprite.w, strip);
-        }
-        paint.globalAlpha = 1;
-        if (age > .08 && age < 1.4 && sprite.seed % 2 === 0) {
-          // Fine loose cinders shed from the connected letter as it drops.
-          for (let i = 0; i < 3; i++) {
-            const life = (age * .8 + i * .31) % 1;
-            paint.fillStyle = `rgba(61,53,49,${(1 - life) * (1 - Math.min(1, age / 1.4)) * .65})`;
-            paint.fillRect(sprite.x + sprite.w * .5 + Math.sin(sprite.seed + i * 23) * life * 22,
-              sprite.y + cut * .5 + fall + life * 35, .8 + i * .3, .9 + i * .25);
-          }
-        }
-        if (scan && cut < sprite.h) {
-          paint.save();paint.beginPath();paint.rect(sprite.x, line - 4, sprite.w, 8);paint.clip();
-          paint.globalCompositeOperation = 'screen';
-          paint.shadowColor = '#ff5a24';paint.shadowBlur = 12;
-          paint.drawImage(sprite.ash, sprite.x, sprite.y, sprite.w, sprite.h);
-          paint.restore();
+    const glow = (x, y, strength) => {
+      const light = paint.createRadialGradient(x, y, 0, x, y, 18);
+      light.addColorStop(0, `rgba(255,226,161,${strength})`);
+      light.addColorStop(.18, `rgba(255,80,21,${strength * .75})`);
+      light.addColorStop(1, 'rgba(255,43,6,0)');
+      paint.fillStyle = light;paint.fillRect(x - 18, y - 18, 36, 36);
+    };
+    const drawInkAndDust = (time) => {
+      remaining.data.set(original.data);
+      let removed = 0;
+      for (const sample of samples) {
+        const age = time - sample.at;
+        if (age >= 35) { remaining.data[sample.offset + 3] = 0;removed++; }
+        else if (age > -15) {
+          const heat = Math.max(0, 1 - Math.abs(age) / 35);
+          remaining.data[sample.offset] = 86 + heat * 169;
+          remaining.data[sample.offset + 1] = 43 + heat * 92;
+          remaining.data[sample.offset + 2] = 25 + heat * 25;
+          remaining.data[sample.offset + 3] *= Math.min(1, (35 - age) / 24);
         }
       }
-      return line;
+      canvas.dataset.removedPixels = String(removed);
+      inkPaint.putImageData(remaining, 0, 0);paint.drawImage(ink, left, top);
+      let active = 0;
+      for (const speck of dust) {
+        const age = (time - speck.at - 15) / 1000;
+        if (age <= 0 || age > speck.life) continue;
+        active++;
+        const drag = (1 - Math.exp(-age * 1.5)) / 1.5;
+        const x = speck.x + speck.vx * drag;
+        const y = speck.y + speck.vy * drag + 52 * age * age;
+        const alpha = speck.alpha * Math.pow(1 - age / speck.life, .65);
+        const hot = Math.max(0, 1 - age / .11);
+        paint.fillStyle = `rgba(${speck.shade + hot * 170},${speck.shade + hot * 38},${speck.shade * .93},${alpha})`;
+        paint.fillRect(x, y, speck.size, speck.size * .78);
+      }
+      canvas.dataset.activeParticles = String(active);
     };
-    const beam = (eye, target, time) => {
-      paint.save();paint.globalCompositeOperation = 'screen';paint.lineCap = 'round';
-      // A thin bright core inside a soft illuminated cone, anchored in the eye.
-      paint.beginPath();paint.moveTo(eye.x, eye.y);paint.lineTo(target.x - 5, target.y - 2);paint.lineTo(target.x + 5, target.y + 2);paint.closePath();
-      const volume = paint.createLinearGradient(eye.x, eye.y, target.x, target.y);
-      volume.addColorStop(0, 'rgba(255,80,35,.12)');volume.addColorStop(1, 'rgba(255,75,25,.04)');
-      paint.fillStyle = volume;paint.fill();
-      for (const [width, alpha, color] of [[8, .13, '255,65,28'], [3, .5, '255,86,45'], [.9, .95, '255,228,183']]) {
+    const beam = (eye, target) => {
+      paint.save();paint.globalCompositeOperation = 'lighter';paint.lineCap = 'round';
+      for (const [width, alpha, color] of [[9, .075, '255,49,12'], [3, .32, '255,80,25'], [.85, .9, '255,227,183']]) {
         paint.lineWidth = width;paint.strokeStyle = `rgba(${color},${alpha})`;
         paint.beginPath();paint.moveTo(eye.x, eye.y);paint.lineTo(target.x, target.y);paint.stroke();
       }
-      glow(target.x, target.y, 23, .85);
-      for (let i = 0; i < 8; i++) {
-        const life = (time * .012 + i * .137) % 1;
-        paint.fillStyle = `rgba(255,173,79,${1 - life})`;
-        paint.fillRect(target.x + Math.sin(i * 19) * life * 24, target.y - life * (14 + i * 4), 1.3, 2.1);
-      }
-      paint.restore();
+      glow(target.x, target.y, .75);paint.restore();
     };
     let frame;
     const motion = async (ms, phase, render) => {
@@ -1162,36 +1231,40 @@
       const clock = animate(canvas, [{ opacity: 1 }, { opacity: 1 }], { duration: ms, easing: 'linear' });
       const draw = () => {
         paint.clearRect(0, 0, canvas.width / ratio, canvas.height / ratio);
+        eyePaint.clearRect(0, 0, canvas.width / ratio, canvas.height / ratio);
         render(Math.min(1, Number(clock.currentTime || 0) / ms));
         if (clock.playState === 'running' && !isInterrupted()) frame = requestAnimationFrame(draw);
       };
       draw();
       try { await clock.finished; } finally { cancelAnimationFrame(frame); }
-      if (!isInterrupted()) { paint.clearRect(0, 0, canvas.width / ratio, canvas.height / ratio);render(1); }
+      if (!isInterrupted()) {
+        paint.clearRect(0, 0, canvas.width / ratio, canvas.height / ratio);
+        eyePaint.clearRect(0, 0, canvas.width / ratio, canvas.height / ratio);render(1);
+      }
     };
-    document.body.appendChild(canvas);
-    intro.style.visibility = 'hidden';
+    document.body.append(canvas, eyeLight);intro.style.visibility = 'hidden';
     try {
       await motion(450, 'charge-eyes', progress => {
-        drawText(0, false);
-        lightEyes(progress * progress * (.88 + Math.sin(progress * 34) * .12), progress);
+        paint.drawImage(ink, left, top);
+        lightEyes(progress * progress, progress);
       });
       await motion(duration, 'laser-scan', progress => {
         const time = progress * duration;
-        const line = drawText(time);
-        const target = { x: left + (right - left) * (.5 + .48 * Math.sin(progress * Math.PI * 20)), y: line };
-        for (const eye of eyes) beam(eye, target, time);
+        drawInkAndDust(time);
+        const pass = Math.min(passes - 1, Math.floor(progress * passes));
+        const across = Math.min(1, progress * passes - pass);
+        const target = { x: left + width * (pass % 2 ? 1 - across : across),
+          y: top + height * (pass + .5) / passes };
+        for (const eye of eyes) beam(eye, target);
         lightEyes(1, time / 1000);
       });
-      await motion(1100, 'falling-ash', progress => {
-        drawText(duration + progress * 1100, false);
-        lightEyes(Math.max(0, 1 - progress * 5), 1.8 + progress);
+      await motion(1650, 'falling-ash', progress => {
+        drawInkAndDust(duration + progress * 1650);
+        lightEyes(Math.max(0, 1 - progress * 7), 2.2 + progress);
       });
     } finally {
-      cancelAnimationFrame(frame);
-      canvas.remove();
-      // The outgoing intro remains empty until its view is hidden by navigation.
-      // swapBooks restores its original style together with the book placement.
+      cancelAnimationFrame(frame);canvas.remove();eyeLight.remove();
+      // Keep native text hidden until the outgoing Robotics view is hidden.
     }
   }
 
@@ -1569,15 +1642,26 @@
     Object.assign(front.style, { transformOrigin: 'right center', transform: 'rotateY(0deg)', backfaceVisibility: 'hidden' });
     // Hinge on the right, so the left fore-edge opens toward the course text.
     // The carrier stays on the table: only the actual cover opens in 3D.
-    const coverGrip = (angle) => {
+    const coverPoint = (u, v, angle) => {
       const radians = angle * Math.PI / 180;
-      const z = book.width * .9 * Math.sin(radians);
+      const z = book.width * (1 - u) * Math.sin(radians);
       const projection = 2000 / (2000 - z);
-      const x = (book.width - book.width * .9 * Math.cos(radians) - book.width / 2) * projection;
-      const y = -book.height * .12 * projection;
+      const x = (book.width - book.width * (1 - u) * Math.cos(radians) - book.width / 2) * projection;
+      const y = book.height * (v - .5) * projection;
       const tilt = book.pose.angle * Math.PI / 180;
       return { x: book.pose.x + book.width / 2 + x * Math.cos(tilt) - y * Math.sin(tilt),
         y: book.pose.y + book.height / 2 + x * Math.sin(tilt) + y * Math.cos(tilt) };
+    };
+    const coverGrip = (angle) => coverPoint(.1, .38, angle);
+    const hidePaperBehindCover = (angle) => {
+      // The sheet sits above the inside pages and below the lifted front cover.
+      // Cut its pixels out under the exact projected cover silhouette; only the
+      // part pulled through the fore-edge gap can appear on the tabletop.
+      const corners = [[0, 0], [1, 0], [1, 1], [0, 1]].map(([u, v]) => coverPoint(u, v, angle));
+      context.save();context.globalCompositeOperation = 'destination-out';
+      context.fillStyle = '#fff';context.beginPath();
+      corners.forEach((point, i) => i ? context.lineTo(point.x, point.y) : context.moveTo(point.x, point.y));
+      context.closePath();context.fill();context.restore();
     };
     const handAt = (angle, wrist = 0, dx = 0, dy = 0) => {
       const point = coverGrip(angle);
@@ -1598,16 +1682,17 @@
       if (isInterrupted()) return;
       // Hold the half-open cover while the sheet slides out of its fore-edge.
       // There is no extra opening impulse or ballistic launch.
-      const exit = coverGrip(22);
-      const paperOrigin = { x: exit.x - width * .4, y: exit.y - height * .13 };
+      const inside = coverPoint(.14, .16, 0);
+      const startingScale = Math.min(.66, book.width * .72 / width, book.height * .72 / height);
+      const paperOrigin = { x: inside.x, y: inside.y };
       await Promise.all([
         rasterMotion(1500, (progress) => {
           clear();const ease = progress * progress * (3 - 2 * progress);
-          context.globalAlpha = clamp(progress * 5);
           renderSheet(base.surface, { x: paperOrigin.x + (left - paperOrigin.x) * ease,
             y: paperOrigin.y + (top - paperOrigin.y) * ease - Math.sin(progress * Math.PI) * 12,
-            sx: .4 + .6 * ease, sy: .22 + .78 * ease, angle: (1 - ease) * -5 }, 1 - .4 * ease);
-          context.globalAlpha = 1;
+            sx: startingScale + (1 - startingScale) * ease,
+            sy: startingScale + (1 - startingScale) * ease, angle: (1 - ease) * -3 }, 1 - .4 * ease);
+          hidePaperBehindCover(22);
         }, 'slide-paper'),
         animate(front, [{ transform: 'rotateY(22deg)' }, { transform: 'rotateY(22deg)' }], { duration: 1500 }).finished,
         animate(hand, [{ transform: handAt(22, -7) }, { transform: handAt(22, -5) }], { duration: 1500 }).finished
@@ -1670,13 +1755,13 @@
         rasterMotion(5000, (progress) => renderBurn(.055 + progress * 1.085, 1.31 + progress * 5), 'burn-paper')
       ]);
       if (isInterrupted()) return;
-      await Promise.all([
-        rasterMotion(300, (progress) => {
-          clear();context.drawImage(printed.surface, left, top, width, height);
-          renderSmoke(1.14 + progress * .5, 6.31 + progress * .3);
-        }, 'cooled-print'),
-        animate(depth, [{ opacity: 1 }, { opacity: 0 }], { duration: 300, easing: 'ease-out' }).finished
-      ]);
+      // Opacity groups flatten a 3D subtree. Fading the inside pages placed
+      // their cream surface over the closed cover, creating the final flash.
+      // Keep them behind the cover in 3D until removing the fully occluded stack.
+      await rasterMotion(300, (progress) => {
+        clear();context.drawImage(printed.surface, left, top, width, height);
+        renderSmoke(1.14 + progress * .5, 6.31 + progress * .3);
+      }, 'cooled-print');
     } finally {
       lighter.remove();
       restoreStyle(front, frontStyle);
