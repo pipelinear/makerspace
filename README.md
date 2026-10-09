@@ -2,7 +2,7 @@
 
 <img src=".github/readme/book.svg" width="80" alt="An open Makerspace book">
 
-<sub>SANTA BARBARA HIGH SCHOOL · 25–26</sub>
+<sub>SANTA BARBARA HIGH SCHOOL · 26–27</sub>
 
 # MAKERSPACE
 

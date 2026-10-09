@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#b7ddd2">
   <meta name="description" content="A field guide to the SBHS Makerspace. Explore the tools, future projects, and Robotics at Santa Barbara High School.">
-  <title>Makerspace — SBHS 2026</title>
+  <title>Makerspace — SBHS 2026–27</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23b7ddd2'/%3E%3Ctext x='4' y='25' font-family='Georgia' font-size='27' fill='%231c2823'%3EM%3C/text%3E%3C/svg%3E">
   <link rel="preload" as="image" href="assets/book-hand-long.png">
   <link rel="preload" as="image" href="assets/book-hand-release-long.png">
@@ -15,17 +15,16 @@
   <link rel="preload" as="image" href="assets/robotics-charred-paper.png">
   <link rel="preload" as="image" href="assets/lighter-hand.png">
   <link rel="preload" as="image" href="assets/book-hand-flat.png">
-  <link rel="stylesheet" href="styles.css">
-  <script src="content.js" defer></script>
+  <link rel="stylesheet" href="styles.css?v=20261008-club-volume">
+  <script src="content.js?v=20261008-club-volume" defer></script>
   <script src="assets/robotics-paper-relief.js" defer></script>
-  <script src="app.js" defer></script>
+  <script src="app.js?v=20261008-club-volume" defer></script>
 </head>
 <body>
   <div class="intro" id="intro" aria-label="Welcome to Makerspace">
-    <span class="intro-edition">SBHS<br>2026</span>
+    <span class="intro-edition">SBHS<br>2026–27</span>
     <div class="intro-word"><span>Makerspace</span></div>
     <span class="intro-location">Santa<br>Barbara</span>
-    <div class="intro-bottom"><span>A place for the things you haven’t made yet.</span><button id="skip-intro">Skip intro</button></div>
   </div>
   <header class="site-header">
     <nav aria-label="Main navigation">
@@ -34,7 +33,6 @@
       <a href="#robotics" class="nav-link" data-view="robotics">Robotics</a>
     </nav>
     <a class="wordmark" href="#collections" aria-label="Makerspace home">MAKERSPACE</a>
-    <button class="about-link" id="about-button">The club</button>
   </header>
   <main id="main-content">
     <section id="collections-view" class="view collections-view" aria-label="Makerspace collections">
@@ -50,7 +48,7 @@
           <span class="book-edge"></span>
           <span class="cover-spine"><span>SBHS · MAKERSPACE · 2026</span></span>
           <span class="cover-face">
-            <img id="cover-image" src="https://images.unsplash.com/photo-1742971366169-6efb57949d56?auto=format&fit=crop&w=1200&q=85" alt="A close-up of a real 3D printer" fetchpriority="high">
+            <img id="cover-image" src="https://images.unsplash.com/photo-1742971366169-6efb57949d56?auto=format&fit=crop&w=1200&q=85" alt="A close-up of a real 3D printer" fetchpriority="high" draggable="false">
             <span class="cover-shade"></span>
             <span class="cover-title">THE MAKERSPACE<br>COLLECTION</span>
             <span class="cover-caption">A FIELD GUIDE TO MAKING THINGS<br>SANTA BARBARA HIGH SCHOOL</span>
@@ -60,14 +58,15 @@
           <span class="cover-back" aria-hidden="true"><span class="paper-page poster-page" id="cover-back-page"></span></span>
         </button>
           </div>
+          <p class="home-subheading">A place for the things you haven’t made yet.</p>
           <div class="reader-controls" id="reader-controls" inert><button id="previous-page">Previous</button><button id="next-page">Next</button></div>
         </div>
       </div>
-      <footer class="collection-footer"><span class="footer-year">25–26</span><span class="footer-volume" id="footer-volume">Vol. 01</span></footer>
+      <footer class="collection-footer"><span class="footer-year">26–27</span><div class="volume-selector"><button class="footer-volume" id="footer-volume" aria-expanded="false" aria-controls="volume-options" aria-label="Choose volume, current volume 01">Vol. 01</button><div class="volume-options" id="volume-options" inert><button id="volume-two-button">Vol. 02 <span aria-hidden="true">↗</span></button></div></div></footer>
     </section>
     <section id="projects-view" class="view project-notebook" aria-labelledby="projects-title" hidden>
       <aside class="project-index">
-        <span class="project-index-edition">SBHS / 2026</span>
+        <span class="project-index-edition">SBHS / 2027</span>
         <h1 id="projects-title">Future<br> projects.</h1>
         <p>Four ideas for our room.</p>
         <nav aria-label="Project index" id="project-index-links"></nav>
@@ -81,7 +80,24 @@
       <div id="robotics-modules" class="course-modules"><h2>From a first idea<br>to a first movement.</h2><div><article><span>01 / DESIGN</span><h3>Give an idea a shape.</h3><p>Sketch, model in CAD, and prototype a chassis or mechanism using the tools in the room.</p></article><article><span>02 / ELECTRONICS</span><h3>Make the connections.</h3><p>Explore circuits, motors, sensors, and microcontrollers. Learn how a robot reads the world.</p></article><article><span>03 / PROGRAMMING</span><h3>Tell it what to do.</h3><p>Write simple control programs, test movement, and work through the little surprises that make building interesting.</p></article><article><span>04 / BUILD TOGETHER</span><h3>Put it all in motion.</h3><p>Combine design, hardware, and code in a team project. Test it, rethink it, and make it work a little better.</p></article></div></div>
       <div class="robotics-footnote"><p>You don’t have to wait for a class to start making.</p><button id="robotics-club-button">Meet the Makerspace club</button></div>
     </section>
+    <section id="wonderland-view" class="view wonderland-view" aria-labelledby="wonderland-title" hidden>
+      <div class="wonderland-masthead"><span>SBHS / VOLUME 02</span><a href="#collections">Back to the book ↗</a></div>
+      <div class="wonderland-hero"><span class="wonderland-coordinate">YOU ARE SOMEWHERE NEW.</span><h1 id="wonderland-title" tabindex="-1">Follow the<br><em>unexpected.</em></h1><p>A different way into Makerspace. Start with a strange little idea. See what it becomes.</p><a href="#wonderland-gallery" class="wonderland-explore">Explore the experiments ↓</a><span class="wonderland-orbit" aria-hidden="true"><i></i></span></div>
+      <div class="wonderland-gallery" id="wonderland-gallery"><div class="wonderland-gallery-heading"><h2>Things that could exist.</h2><span>AN OPEN CABINET OF IDEAS / 01–04</span></div><div id="wonderland-experiments"></div></div>
+      <footer class="wonderland-footer"><span>MAKERSPACE / 26–27</span><a href="#collections/club-leaders">Meet the people behind it ↗</a></footer>
+    </section>
   </main>
+  <dialog id="volume-password-dialog" class="volume-password-dialog" aria-labelledby="volume-password-title">
+    <form id="volume-password-form">
+      <span class="eyebrow">VOLUME 02</span>
+      <h2 id="volume-password-title">A different way in.</h2>
+      <label for="volume-password">Site password</label>
+      <input id="volume-password" name="password" type="password" autocomplete="off" required aria-describedby="volume-password-error" autofocus>
+      <p id="volume-password-error" class="volume-password-error" aria-live="polite"></p>
+      <div class="volume-password-actions"><button type="button" id="volume-password-cancel">Cancel</button><button type="submit">Enter ↗</button></div>
+    </form>
+  </dialog>
+  <button id="skip-animation" class="skip-animation" hidden>Skip animation</button>
   <div id="announcement" class="sr-only" aria-live="polite"></div>
 </body>
 </html>

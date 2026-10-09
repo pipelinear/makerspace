@@ -177,6 +177,35 @@ window.MAKERSPACE = {
       tools: ['raspberry-pis', 'electronics', 'our-room']
     }
   ],
+  clubLeaders: [
+    { role: 'President', name: null, image: null, description: 'Helps shape the club and brings our projects together.' },
+    { role: 'Captain', name: null, image: null, description: 'Helps makers get started and keeps the builds moving.' },
+    { role: 'Representative', name: null, image: null, description: 'Connects Makerspace with the wider SBHS community.' },
+    { role: 'Liaisons', name: null, image: null, description: 'Connect our teams, ideas, and collaborators.' }
+  ],
+  // Stock-photo examples until students supply their own projects and maker credits.
+  showcase: [
+    { slug: 'printed-vase', title: 'A shape you can hold.', category: '3D PRINTING', maker: null,
+      image: 'https://images.unsplash.com/photo-1703221561813-cdaa308cf9e7?auto=format&fit=crop&w=900&q=85',
+      alt: 'A purple 3D-printed vase with a sculptural, folded surface',
+      credit: { name: 'David Clode / Unsplash', url: 'https://unsplash.com/photos/C165O0AD8Ec' },
+      description: 'A sculptural object, built one layer at a time.', tools: ['3d-printers', 'cad-design'] },
+    { slug: 'handmade-bag', title: 'Carry your own idea.', category: 'TEXTILES', maker: null,
+      image: 'https://images.unsplash.com/photo-1647425929500-702a24618f5d?auto=format&fit=crop&w=900&q=85',
+      alt: 'A handmade fabric bag with embroidered details',
+      credit: { name: 'Yellow Cactus / Unsplash', url: 'https://unsplash.com/photos/IMSHfJFuA3k' },
+      description: 'Fabric, a few stitches, and something personal.', tools: ['sewing-machines', 'vinyl-cutter'] },
+    { slug: 'wooden-hand', title: 'Give a material a life.', category: 'OBJECTS & ART', maker: null,
+      image: 'https://images.unsplash.com/photo-1642177341669-819b8377456e?auto=format&fit=crop&w=900&q=85',
+      alt: 'An articulated wooden hand holding a small wooden figure',
+      credit: { name: 'Peter Heymans / Unsplash', url: 'https://unsplash.com/photos/Z7sO7xaTeac' },
+      description: 'An everyday material becomes an unexpected character.', tools: ['laser-cutters', 'cnc-router', 'hand-tools', 'power-tools'] },
+    { slug: 'moving-machine', title: 'A little more alive.', category: 'ROBOTICS & ELECTRONICS', maker: null,
+      image: 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?auto=format&fit=crop&w=900&q=85',
+      alt: 'An example humanoid robot with an expressive face',
+      credit: { name: 'Alex Knight / Unsplash', url: 'https://unsplash.com/photos/2EJCSULRwC8' },
+      description: 'Shape, circuits, and code working together.', tools: ['raspberry-pis', 'electronics', 'vr-headsets', 'our-room'] }
+  ],
   roboticsImage: 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?auto=format&fit=crop&w=1200&q=85',
   roboticsCredit: {name: 'Alex Knight / Unsplash', url: 'https://unsplash.com/photos/2EJCSULRwC8'}
 };

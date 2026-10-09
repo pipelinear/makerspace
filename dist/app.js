@@ -1,8 +1,12 @@
 (() => {
   'use strict';
-  const { tools: equipment, projects, roboticsImage, roboticsCredit } = window.MAKERSPACE;
-  const tools = [...equipment, { slug: 'the-club', name: 'The club', category: 'SBHS / GOLDEN TIME', number: '13', background: '#e5e2f0', color: '#172a23' }];
-  const CLUB_PAGE = tools.length - 1;
+  const { tools: equipment, projects, roboticsImage, roboticsCredit, clubLeaders, showcase } = window.MAKERSPACE;
+  const tools = [...equipment,
+    { slug: 'the-club', name: 'The club', category: 'SBHS / GOLDEN TIME', number: '13', background: '#e5e2f0', color: '#172a23' },
+    { slug: 'club-leaders', name: 'The people', category: 'CLUB LEADERSHIP', number: '14', background: '#ebbe9f', color: '#172a23' }
+  ];
+  const CLUB_PAGE = equipment.length;
+  const LEADERS_PAGE = CLUB_PAGE + 1;
   const $ = (id) => document.getElementById(id);
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   const escape = (value) => String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
@@ -10,9 +14,10 @@
   const INTRO_REVEAL_MS = 900;
   const INTRO_HOLD_MS = 1500;
   const INTRO_FADE_MS = 750;
-  const views = { collections: $('collections-view'), 'future-projects': $('projects-view'), robotics: $('robotics-view') };
+  const views = { collections: $('collections-view'), 'future-projects': $('projects-view'), robotics: $('robotics-view'), 'volume-02': $('wonderland-view') };
   let paperMaterials;
-  const picture = (src, alt, extra = '') => `<img src="${escape(src)}" alt="${escape(alt)}" ${extra}>`;
+  let roboticsResidue;
+  const picture = (src, alt, extra = '') => `<img src="${escape(src)}" alt="${escape(alt)}" draggable="false" ${extra}>`;
   const credit = (item) => `<a href="${escape(item.url)}" target="_blank" rel="noopener noreferrer">${escape(item.name)}</a>${item.license ? ` · <a href="${escape(item.licenseUrl)}" target="_blank" rel="noopener noreferrer">${escape(item.license)}</a> · cropped` : ''}`;
 
   function showIntro() {
@@ -32,7 +37,6 @@
     clearTimeout(state.introTimer);
     $('intro').classList.add('is-leaving');
     document.body.classList.remove('intro-active');
-    // Finish hiding only this intro; a replay started in the meantime stays visible.
     state.introTimer = setTimeout(() => {
       $('intro').hidden = true;
       $('main-content').inert = false;
@@ -42,7 +46,7 @@
   }
 
   function posterHTML(tool) {
-    if (tool.slug === 'the-club') return `<div class="club-frontmatter"><span class="eyebrow">SANTA BARBARA HIGH SCHOOL</span><h2>This room<br>is <em>ours.</em></h2><p>A club for curious people.</p><div class="club-imprint"><span>DESIGN<br>FABRICATION<br>ELECTRONICS<br>ART</span><span>25–26</span></div></div>`;
+    if (tool.slug === 'the-club' || tool.slug === 'club-leaders') return `<div class="club-frontmatter${tool.slug === 'club-leaders' ? ' leaders-frontmatter' : ''}"><span class="eyebrow">SANTA BARBARA HIGH SCHOOL</span><h2>${tool.slug === 'the-club' ? 'This room<br>is <em>ours.</em>' : 'Meet<br>the <em>people.</em>'}</h2><p>${tool.slug === 'the-club' ? 'Bring an idea. Find your people.' : 'The people who help ideas happen.'}</p><div class="club-imprint"><span>DESIGN<br>FABRICATION<br>ELECTRONICS<br>ART</span><span>26–27</span></div></div>`;
     return `${picture(tool.image, tool.alt, 'class="poster-image" loading="eager" decoding="async"')}<span class="poster-wash"></span>
       <span class="poster-kicker"><span>THE MAKERSPACE COLLECTION</span><span>SBHS / 2026</span></span>
       <h2 class="poster-heading">${escape(tool.headline[0])}<em>${escape(tool.headline[1])}</em></h2>
@@ -51,17 +55,62 @@
   }
 
   function detailHTML(tool, index) {
-    if (tool.slug === 'the-club') return `<div class="detail-top"><span>THE CLUB</span><span>SBHS / 25–26</span></div>
-      <div class="club-page-copy"><p class="club-search-line">A club for curious people.</p><p class="club-search-line">A room to try something new.</p>
+    if (tool.slug === 'club-leaders') return `<div class="detail-top"><span>THE PEOPLE</span><span>SBHS / 26–27</span></div>
+      <div class="leaders-page-copy"><h2>Meet the<br>Makerspace club.</h2><p class="leaders-intro">Say hello to the team.</p><div class="leader-list">${clubLeaders.map((person) => `<article class="leader-person"><div class="leader-portrait">${person.image ? picture(person.image, person.name ? `Portrait of ${person.name}` : person.role) : '<span class="portrait-placeholder" aria-label="Portrait coming soon"></span>'}</div><div><span class="leader-role">${escape(person.role)}</span><h3>${escape(person.name || 'Name to be added')}</h3><p>${escape(person.description)}</p></div></article>`).join('')}</div></div>
+      <div class="detail-bottom"><span>OUR TEAM / 2026–27</span><button data-club-page>← Golden Time</button></div>`;
+    if (tool.slug === 'the-club') return `<div class="detail-top"><span>THE CLUB</span><span>SBHS / 26–27</span></div>
+      <div class="club-page-copy"><p class="club-search-line">A room for experiments.</p><p class="club-search-line">A room to try something new.</p>
       <h2 id="club-target" tabindex="-1">A place to make<br>something of an idea.</h2>
       <div class="club-times"><div><span class="eyebrow">GOLDEN TIME</span><p>Tuesdays & Fridays<br>During homeroom</p></div><div><span class="eyebrow">WHO IT’S FOR</span><p>SBHS students.<br>Beginners welcome.</p></div></div>
       <p>Try a tool, join a shared project, or bring your own idea. Find Makerspace in the school’s Golden Time options.</p></div>
-      <div class="detail-bottom"><span>SANTA BARBARA HIGH SCHOOL</span><button data-replay-intro>Replay the opening</button></div>`;
+      <div class="detail-bottom"><span>TURN THE PAGE</span><button data-leaders>Meet the people →</button></div>`;
     return `<div class="detail-top"><span>THE COLLECTION</span><span>${escape(tool.category)}</span></div>
       <div class="detail-main"><h2>${escape(tool.name)}</h2><p class="detail-description">${escape(tool.description)}</p>
-      <h3 class="detail-subtitle">A FEW THINGS YOU COULD MAKE</h3><ul class="idea-list">${tool.ideas.map((idea) => `<li>${escape(idea)}</li>`).join('')}</ul>
+      <h3 class="detail-subtitle">IDEAS & THINGS MADE</h3><div class="idea-list">${tool.ideas.map((idea, ideaIndex) => ideaHTML(tool, idea, ideaIndex)).join('')}</div>
       <p class="detail-note">${escape(tool.note)}</p></div>
       <div class="detail-bottom"><span>EXAMPLE PHOTO · ${credit(tool.credit)}</span><span>${String((index + 1) * 2).padStart(2, '0')}</span></div>`;
+  }
+
+  function ideaHTML(tool, idea, index) {
+    const matches = showcase.filter((example) => example.tools.includes(tool.slug));
+    const example = matches[index % matches.length] || showcase[index % showcase.length];
+    // Real maker names and their own photos can replace the sample independently.
+    const work = tool.madeProjects?.[index] || example;
+    return `<details class="made-project"><summary><span>${escape(idea)}</span><span class="idea-chevron" aria-hidden="true">⌄</span></summary><div class="made-project-body"><figure>${picture(work.image, work.alt, 'loading="lazy" decoding="async"')}<figcaption><span class="made-project-label">${work.maker ? 'MADE IN MAKERSPACE' : 'EXAMPLE PROJECT / STOCK PHOTO'}</span><h4>${escape(work.title)}</h4><p class="maker-credit">${work.maker ? `Made by ${escape(work.maker)}` : 'Maker / student name to be added'}</p><p>${escape(work.description)}</p><span class="made-photo-credit">${credit(work.credit)}</span></figcaption></figure></div></details>`;
+  }
+
+  const disclosureMotions = new WeakMap();
+  function animateProjectDisclosure(details, opening) {
+    const content = details.querySelector('.made-project-body');
+    const previous = disclosureMotions.get(details);
+    if (previous?.opening === opening || (!previous && details.open === opening)) return;
+    const start = details.open ? content.getBoundingClientRect().height : 0;
+    const opacity = details.open ? parseFloat(getComputedStyle(content).opacity) || 0 : 0;
+    previous?.motion.cancel();
+    details.querySelector('summary').setAttribute('aria-expanded', String(opening));
+    details.classList.toggle('is-expanded', opening);
+    if (reducedMotion.matches) {
+      details.open = opening;
+      content.style.height = '';
+      disclosureMotions.delete(details);
+      return;
+    }
+    details.open = true;
+    content.style.height = `${start}px`;
+    const end = opening ? content.scrollHeight : 0;
+    const motion = content.animate([
+      { height: `${start}px`, opacity },
+      { height: `${end}px`, opacity: opening ? 1 : 0 }
+    ], { duration: 340, easing: 'cubic-bezier(.22,1,.36,1)', fill: 'both' });
+    const record = { motion, opening };
+    disclosureMotions.set(details, record);
+    motion.finished.then(() => {
+      if (disclosureMotions.get(details) !== record) return;
+      details.open = opening;
+      content.style.height = '';
+      motion.cancel();
+      disclosureMotions.delete(details);
+    }).catch(() => {});
   }
 
   function paintPoster(tool) {
@@ -80,10 +129,9 @@
     $('next-page').disabled = state.page === tools.length - 1 || state.busy;
     $('footer-volume').textContent = 'Vol. 01';
     $('announcement').textContent = state.open ? `${tool.name}, collection ${state.page + 1} of ${tools.length}` : 'Makerspace collection cover';
-    $('book-spread').setAttribute('aria-label', state.open ? state.page === CLUB_PAGE ? 'The Makerspace club: Golden Time and membership' : `${tool.name}: poster and project ideas` : 'Makerspace collection');
-    $('poster-page').classList.toggle('is-club-page', state.page === CLUB_PAGE);
-    $('detail-page').classList.toggle('is-club-page', state.page === CLUB_PAGE);
-    $('about-button').classList.toggle('club-active', state.view === 'collections' && state.open && state.page === CLUB_PAGE);
+    $('book-spread').setAttribute('aria-label', state.open ? state.page === CLUB_PAGE ? 'The Makerspace club: Golden Time and membership' : state.page === LEADERS_PAGE ? 'Meet the Makerspace club leaders' : `${tool.name}: poster and project ideas` : 'Makerspace collection');
+    $('poster-page').classList.toggle('is-club-page', state.page >= CLUB_PAGE);
+    $('detail-page').classList.toggle('is-club-page', state.page >= CLUB_PAGE);
     for (const id of ['poster-page', 'detail-page', 'reader-controls']) {
       $(id).inert = !state.open || state.busy;
       $(id).setAttribute('aria-hidden', String(!state.open));
@@ -156,6 +204,7 @@
 
   async function openBook(index = state.page, animate = true, { forNavigation = false } = {}) {
     if (state.busy || (state.navigating && !forNavigation)) return;
+    fadeRoboticsResidue();
     state.page = Math.max(0, Math.min(tools.length - 1, index));
     if (state.open) { paintSpread(); return; }
     state.busy = true;
@@ -234,6 +283,7 @@
       if (mobile) {
         front.appendChild(oldPoster);
         paintPoster(nextTool);
+        paintDetail(nextTool, next);
         back.appendChild(clonePage($('poster-page')));
       } else if (forward) {
         front.appendChild(oldDetail);
@@ -360,12 +410,21 @@
       const detail = $('detail-page');
       if (window.innerWidth <= 900) {
         const top = detail.getBoundingClientRect().top + window.scrollY - document.querySelector('.site-header').getBoundingClientRect().height - 24;
-        window.scrollTo({ top: Math.max(0, top), behavior: 'instant' });
+        await scrollForAnimation(Math.max(0, top), (element, frames, options) => {
+          const motion = element.animate(frames, options);
+          motions.push(motion);
+          return motion;
+        }, () => interrupted);
+        if (interrupted) return;
       }
       const target = detail.querySelector('#club-target');
       const lines = [...detail.querySelectorAll('.club-search-line')];
       const pageRect = detail.getBoundingClientRect();
-      const handWidth = Math.max(360, Math.min(650, pageRect.width * 1.65));
+      // Size from the leftmost fingertip and the most rotated/scaled pose.
+      // The photographed forearm's crop must stay beyond the right viewport edge.
+      const cropReach = (.947 * Math.cos(12 * Math.PI / 180) - .28 * Math.sin(12 * Math.PI / 180)) * .985;
+      const handWidth = Math.max(500, pageRect.width * 1.65,
+        (window.innerWidth - pageRect.left + 180) / cropReach);
       hand.style.width = `${handWidth}px`;
       hand.style.height = `${handWidth / 2}px`;
       // Both poses share the same fingertip registration, so a tap never jumps sideways.
@@ -398,7 +457,9 @@
       for (let count = 0; count < 2 && !interrupted; count++) {
         await play([
           [hand, [{ transform: contact }, { transform: position(found.x, found.y, 0, 1.035), offset: .28 }, { transform: position(found.x, found.y, 0, .985), offset: .52 }, { transform: contact }]],
-          [pointing, [{ opacity: 1 }, { opacity: 0, offset: .5 }, { opacity: 1 }]],
+          // Keep an opaque base under the changing pose, so blending the
+          // photos never dims the hand. The physical tap motion stays intact.
+          [pointing, [{ opacity: 1 }, { opacity: 1 }]],
           [tapping, [{ opacity: 0 }, { opacity: 1, offset: .5 }, { opacity: 0 }]],
           [target, [{ textShadow: '0 0 0 transparent' }, { textShadow: '0 2px 12px #82759c55', offset: .5 }, { textShadow: '0 0 0 transparent' }]]
         ], 340, 'ease-in-out');
@@ -428,6 +489,7 @@
 
   async function openProjects({ continuation = false } = {}) {
     if (state.busy || (!continuation && state.navigating) || state.view !== 'collections') return;
+    fadeRoboticsResidue();
     activateTab('future-projects');
     state.navigating = true;
     const main = $('main-content');
@@ -716,6 +778,50 @@
     else element.setAttribute('style', style);
   }
 
+  let skipHideTimer, skipControlOwner = 0;
+  function offerAnimationSkip(skip, destination) {
+    const button = $('skip-animation');
+    if (reducedMotion.matches) return async () => {};
+    const owner = ++skipControlOwner;
+    clearTimeout(skipHideTimer);
+    button.hidden = false;
+    button.disabled = false;
+    let veil, fadeIn, released = false;
+    requestAnimationFrame(() => { if (owner === skipControlOwner && !released) button.classList.add('is-visible'); });
+    const click = async () => {
+      if (button.disabled) return;
+      button.disabled = true;
+      veil = document.createElement('div');
+      veil.className = 'animation-skip-fade';
+      veil.setAttribute('aria-hidden', 'true');
+      veil.style.backgroundColor = destination === 'robotics' ? '#cfcee4' : destination === 'future-projects' ? '#d6e5ee' : '#b7ddd2';
+      document.body.append(veil);
+      const fade = veil.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180, easing: 'ease-in-out', fill: 'forwards' });
+      fadeIn = fade.finished;
+      await fadeIn;
+      if (!released) skip();
+    };
+    button.addEventListener('click', click);
+    return async () => {
+      released = true;
+      button.removeEventListener('click', click);
+      if (owner === skipControlOwner) {
+        button.classList.remove('is-visible');
+        button.disabled = true;
+        skipHideTimer = setTimeout(() => {
+          if (owner !== skipControlOwner) return;
+          button.hidden = true;
+          button.disabled = false;
+        }, 240);
+      }
+      if (veil) {
+        await fadeIn;
+        const fade = veil.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 280, easing: 'ease-in-out', fill: 'forwards' });
+        try { await fade.finished; } finally { veil.getAnimations().forEach((motion) => motion.cancel()); veil.remove(); }
+      }
+    };
+  }
+
   function finishNavigation(view, animations = [], overlay) {
     if (state.pendingClub && view === 'collections') {
       state.pendingClub = false;
@@ -747,6 +853,7 @@
     if (!continuation && (state.busy || state.navigating)) return;
     const origin = state.view;
     if (!['collections', 'robotics'].includes(origin) || origin === destination) return;
+    if (destination === 'robotics' || reducedMotion.matches) clearRoboticsResidue();
     activateTab(continueTo || destination);
     state.navigating = true;
     const main = $('main-content');
@@ -774,11 +881,12 @@
     };
     const finishOnResize = () => {
       interrupted = true;
-      animations.forEach((animation) => animation.finish());
+      animations.forEach((animation) => { try { animation.finish(); } catch {} });
     };
     main.inert = true;
     header.inert = true;
     document.body.classList.add('page-transitioning');
+    const releaseSkip = offerAnimationSkip(finishOnResize, continueTo || destination);
     try {
       const robotImage = $('robotics-image');
       robotImage.loading = 'eager';
@@ -812,8 +920,9 @@
       if (origin === 'collections' && state.open) await closeBook({ forNavigation: true });
       state.busy = true;
       updateControls();
-      if (reducedMotion.matches) return;
+      if (reducedMotion.matches || interrupted) return;
       await photosReady;
+      if (interrupted) return;
       window.addEventListener('resize', finishOnResize, { once: true });
       if (origin === 'robotics') await ashRoboticsText(animate, () => interrupted);
       if (interrupted) return;
@@ -992,6 +1101,7 @@
       if (!interrupted) console.warn('Book exchange finished without its remaining motion.', error);
     } finally {
       window.removeEventListener('resize', finishOnResize);
+      if (interrupted) clearRoboticsResidue();
       stage.classList.add('without-motion');
       // Release the finished hinge overrides before restoring native transforms.
       // Reparenting an image while rotateY(0) still overrides its resting tilt
@@ -1019,6 +1129,7 @@
         finishNavigation(continueTo || destination, animations, overlay);
         requestAnimationFrame(() => stage.classList.remove('without-motion'));
       }
+      await releaseSkip();
     }
   }
 
@@ -1051,6 +1162,70 @@
     };
   }
 
+  function clearRoboticsResidue() {
+    const residue = roboticsResidue;
+    if (!residue) return;
+    roboticsResidue = null;
+    clearTimeout(residue.timer);
+    cancelAnimationFrame(residue.frame);
+    cancelAnimationFrame(residue.fadeFrame);
+    residue.fade?.cancel();
+    residue.scorch.remove();
+    residue.dust.remove();
+    window.removeEventListener('resize', residue.onResize);
+  }
+
+  function fadeRoboticsResidue(duration = 4500) {
+    const residue = roboticsResidue;
+    if (!residue || residue.fade) return;
+    clearTimeout(residue.timer);
+    // Keep the canvas opacity steady: each burned patch has its own lifetime.
+    const fade = residue.scorch.animate([{ opacity: 1 }, { opacity: 1 }],
+      { duration, easing: 'linear', fill: 'forwards' });
+    residue.fade = fade;
+    const fadeScorch = () => {
+      if (roboticsResidue !== residue) return;
+      residue.renderScorch(Math.min(1, Number(fade.currentTime || 0) / duration));
+      if (fade.playState === 'running') residue.fadeFrame = requestAnimationFrame(fadeScorch);
+    };
+    fadeScorch();
+    fade.finished.then(() => {
+      if (roboticsResidue === residue && residue.fade === fade) {
+        residue.renderScorch(1);
+        clearRoboticsResidue();
+      }
+    }).catch(() => {});
+  }
+
+  function holdRoboticsResidue(scorch, source, drawDust, elapsed, ratio, renderScorch) {
+    clearRoboticsResidue();
+    const dust = document.createElement('canvas');
+    dust.className = 'robotics-residue-dust';
+    dust.setAttribute('aria-hidden', 'true');
+    dust.width = source.width;dust.height = source.height;
+    const paint = dust.getContext('2d');
+    paint.setTransform(ratio, 0, 0, ratio, 0, 0);
+    document.body.append(dust);
+    const residue = { scorch, dust, renderScorch, frame: null, fadeFrame: null, fade: null, timer: null, onResize: clearRoboticsResidue };
+    roboticsResidue = residue;
+    window.addEventListener('resize', residue.onResize);
+    // Hold the faint damage while the replacement book arrives. Opening the
+    // book begins its slow fade; an idle closed book also clears it eventually.
+    residue.timer = setTimeout(() => fadeRoboticsResidue(5500), 6500);
+    let started;
+    const driftDust = (now) => {
+      if (roboticsResidue !== residue) return;
+      started ??= now;
+      paint.clearRect(0, 0, dust.width / ratio, dust.height / ratio);
+      const active = drawDust(elapsed + now - started, paint);
+      dust.dataset.activeParticles = String(active);
+      if (active) residue.frame = requestAnimationFrame(driftDust);
+      else { residue.frame = null; dust.remove(); }
+    };
+    if (drawDust(elapsed, paint)) residue.frame = requestAnimationFrame(driftDust);
+    else dust.remove();
+  }
+
   function roboticsGlyphs() {
     const glyphs = [];
     for (const block of document.querySelector('.robotics-intro').children) {
@@ -1073,10 +1248,38 @@
     return glyphs;
   }
 
+  async function scrollForAnimation(top, animate, isInterrupted) {
+    const start = window.scrollY;
+    if (Math.abs(top - start) < 1 || isInterrupted()) return;
+    if (reducedMotion.matches) {
+      window.scrollTo({ top, behavior: 'instant' });
+      return;
+    }
+    const duration = Math.min(800, Math.max(450, Math.abs(top - start) * .35));
+    const clock = animate($('announcement'), [{ opacity: 1 }, { opacity: 1 }], { duration, easing: 'linear' });
+    let frame;
+    const drawScroll = () => {
+      const progress = Math.min(1, Number(clock.currentTime || 0) / duration);
+      const eased = progress * progress * (3 - 2 * progress);
+      window.scrollTo({ top: start + (top - start) * eased, behavior: 'instant' });
+      if (clock.playState === 'running' && !isInterrupted()) frame = requestAnimationFrame(drawScroll);
+    };
+    drawScroll();
+    try {
+      await clock.finished;
+      if (!isInterrupted()) window.scrollTo({ top, behavior: 'instant' });
+    } finally {
+      cancelAnimationFrame(frame);
+      clock.cancel();
+    }
+  }
+
   async function ashRoboticsText(animate, isInterrupted) {
+    clearRoboticsResidue();
     const intro = document.querySelector('.robotics-intro');
     const poster = document.querySelector('.robotics-poster');
-    window.scrollTo({ top: 0, behavior: 'instant' });
+    await scrollForAnimation(0, animate, isInterrupted);
+    if (isInterrupted()) return;
     const glyphs = roboticsGlyphs();
     if (!glyphs.length || isInterrupted()) return;
     const left = Math.floor(Math.min(...glyphs.map(({ rect }) => rect.left))) - 8;
@@ -1116,12 +1319,29 @@
     }
     const original = inkPaint.getImageData(0, 0, width, height);
     const remaining = inkPaint.createImageData(width, height);
+    const scorch = document.createElement('canvas');
+    scorch.className = 'robotics-scorch';scorch.setAttribute('aria-hidden', 'true');
+    scorch.width = canvas.width;scorch.height = canvas.height;
+    const scorchPaint = scorch.getContext('2d');
+    scorchPaint.setTransform(ratio, 0, 0, ratio, 0, 0);
+    const etched = document.createElement('canvas');etched.width = width;etched.height = height;
+    const etchedPaint = etched.getContext('2d');
+    const marks = inkPaint.createImageData(width, height);
     const samples = [], dust = [];
-    const duration = 2200, passes = 18;
+    const duration = 2200, ashDuration = 2350, passes = 18;
     const hash = (x, y) => {
       let n = Math.imul(x | 0, 374761393) ^ Math.imul(y | 0, 668265263);
       n = Math.imul(n ^ (n >>> 13), 1274126177);
       return ((n ^ (n >>> 16)) >>> 0) / 4294967295;
+    };
+    const patchNoise = (x, y, size) => {
+      const u = x / size, v = y / size;
+      const ix = Math.floor(u), iy = Math.floor(v);
+      const smooth = (t) => t * t * (3 - 2 * t);
+      const fx = smooth(u - ix), fy = smooth(v - iy);
+      const a = hash(ix + 31, iy + 73), b = hash(ix + 32, iy + 73);
+      const c = hash(ix + 31, iy + 74), d = hash(ix + 32, iy + 74);
+      return (a + (b - a) * fx) * (1 - fy) + (c + (d - c) * fx) * fy;
     };
     for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
       const offset = (y * width + x) * 4;
@@ -1129,12 +1349,20 @@
       const row = Math.min(passes - 1, Math.floor(y / height * passes));
       const scanX = row % 2 ? 1 - x / width : x / width;
       const at = (row + scanX) / passes * duration + (hash(x, y) - .5) * 18;
-      samples.push({ offset, at });
+      const alpha = original.data[offset + 3];
+      const edge = x === 0 || y === 0 || x === width - 1 || y === height - 1 ||
+        [offset - 4, offset + 4, offset - width * 4, offset + width * 4].some((neighbor) => original.data[neighbor + 3] < alpha * .5);
+      // Coherent gaps break up whole strokes, rather than leaving a readable
+      // outline. Finer grain roughens the surviving fragments.
+      const patch = patchNoise(x, y, 23) * .7 + patchNoise(x + 57, y + 19, 8) * .3;
+      const depth = Math.min(1, Math.max(0, (patch - .43) / .37));
+      const burnAlpha = Math.round(alpha * .07 * depth * (edge ? 1 : .6) * (.65 + hash(x + 7, y + 13) * .35));
+      samples.push({ offset, at, burnAlpha, lifetime: .22 + .78 * burnAlpha / 18 });
       if (x % 2 || y % 2 || original.data[offset + 3] < 50) continue;
       const seed = hash(x + 19, y + 37);
       dust.push({ x: left + x, y: top + y, at,
         vx: (seed - .5) * 100, vy: -18 - hash(x + 3, y) * 55,
-        life: .8 + hash(x, y + 9) * .7,
+        life: 2.4 + hash(x, y + 9) * 2.4,
         size: .45 + hash(y, x) * 1.1,
         shade: 48 + Math.round(hash(x + 4, y + 11) * 45),
         alpha: original.data[offset + 3] / 255 });
@@ -1185,12 +1413,30 @@
       light.addColorStop(1, 'rgba(255,43,6,0)');
       paint.fillStyle = light;paint.fillRect(x - 18, y - 18, 36, 36);
     };
+    const paintScorch = () => {
+      etchedPaint.putImageData(marks, 0, 0);
+      scorchPaint.clearRect(0, 0, scorch.width / ratio, scorch.height / ratio);
+      scorchPaint.drawImage(etched, left, top);
+    };
+    const renderScorch = (progress) => {
+      for (const sample of samples) {
+        const remaining = Math.max(0, 1 - progress / sample.lifetime);
+        marks.data[sample.offset + 3] = Math.round(sample.burnAlpha * remaining * remaining);
+      }
+      paintScorch();
+    };
     const drawInkAndDust = (time) => {
       remaining.data.set(original.data);
       let removed = 0;
       for (const sample of samples) {
         const age = time - sample.at;
-        if (age >= 35) { remaining.data[sample.offset + 3] = 0;removed++; }
+        if (age >= 35) {
+          remaining.data[sample.offset + 3] = 0;removed++;
+          marks.data[sample.offset] = 57;
+          marks.data[sample.offset + 1] = 43;
+          marks.data[sample.offset + 2] = 53;
+          marks.data[sample.offset + 3] = sample.burnAlpha;
+        }
         else if (age > -15) {
           const heat = Math.max(0, 1 - Math.abs(age) / 35);
           remaining.data[sample.offset] = 86 + heat * 169;
@@ -1201,6 +1447,11 @@
       }
       canvas.dataset.removedPixels = String(removed);
       inkPaint.putImageData(remaining, 0, 0);paint.drawImage(ink, left, top);
+      paintScorch();
+      scorch.dataset.etchedPixels = String(removed);
+      drawDust(time, paint);
+    };
+    const drawDust = (time, target) => {
       let active = 0;
       for (const speck of dust) {
         const age = (time - speck.at - 15) / 1000;
@@ -1208,13 +1459,14 @@
         active++;
         const drag = (1 - Math.exp(-age * 1.5)) / 1.5;
         const x = speck.x + speck.vx * drag;
-        const y = speck.y + speck.vy * drag + 52 * age * age;
-        const alpha = speck.alpha * Math.pow(1 - age / speck.life, .65);
+        const y = speck.y + speck.vy * drag + 18 * age * age;
+        const alpha = speck.alpha * Math.pow(1 - age / speck.life, 1.05);
         const hot = Math.max(0, 1 - age / .11);
-        paint.fillStyle = `rgba(${speck.shade + hot * 170},${speck.shade + hot * 38},${speck.shade * .93},${alpha})`;
-        paint.fillRect(x, y, speck.size, speck.size * .78);
+        target.fillStyle = `rgba(${speck.shade + hot * 170},${speck.shade + hot * 38},${speck.shade * .93},${alpha})`;
+        target.fillRect(x, y, speck.size, speck.size * .78);
       }
       canvas.dataset.activeParticles = String(active);
+      return active;
     };
     const beam = (eye, target) => {
       paint.save();paint.globalCompositeOperation = 'lighter';paint.lineCap = 'round';
@@ -1242,7 +1494,8 @@
         eyePaint.clearRect(0, 0, canvas.width / ratio, canvas.height / ratio);render(1);
       }
     };
-    document.body.append(canvas, eyeLight);intro.style.visibility = 'hidden';
+    document.body.append(scorch, canvas, eyeLight);intro.style.visibility = 'hidden';
+    let completed = false;
     try {
       await motion(450, 'charge-eyes', progress => {
         paint.drawImage(ink, left, top);
@@ -1258,11 +1511,14 @@
         for (const eye of eyes) beam(eye, target);
         lightEyes(1, time / 1000);
       });
-      await motion(1650, 'falling-ash', progress => {
-        drawInkAndDust(duration + progress * 1650);
+      await motion(ashDuration, 'falling-ash', progress => {
+        drawInkAndDust(duration + progress * ashDuration);
         lightEyes(Math.max(0, 1 - progress * 7), 2.2 + progress);
       });
+      completed = !isInterrupted();
     } finally {
+      if (completed) holdRoboticsResidue(scorch, canvas, drawDust, duration + ashDuration, ratio, renderScorch);
+      else scorch.remove();
       cancelAnimationFrame(frame);canvas.remove();eyeLight.remove();
       // Keep native text hidden until the outgoing Robotics view is hidden.
     }
@@ -1779,24 +2035,170 @@
     });
   }
 
+  let volumeAccess = false, volumePasswordRequest;
+  function requestVolumeAccess() {
+    if (volumePasswordRequest) return volumePasswordRequest;
+    const dialog = $('volume-password-dialog');
+    const form = $('volume-password-form');
+    const input = $('volume-password');
+    const error = $('volume-password-error');
+    const previousFocus = document.activeElement;
+    input.value = '';
+    input.removeAttribute('aria-invalid');
+    error.textContent = '';
+    dialog.returnValue = '';
+    volumePasswordRequest = new Promise((resolve) => {
+      const submit = (event) => {
+        event.preventDefault();
+        if (input.value !== 'nick') {
+          error.textContent = 'That password isn’t right. Try again.';
+          input.setAttribute('aria-invalid', 'true');
+          input.focus({ preventScroll: true });
+          input.select();
+          return;
+        }
+        dialog.close('unlocked');
+      };
+      const closed = () => {
+        const granted = dialog.returnValue === 'unlocked';
+        if (granted) volumeAccess = true;
+        form.removeEventListener('submit', submit);
+        dialog.removeEventListener('close', closed);
+        volumePasswordRequest = null;
+        input.value = '';
+        if (!granted) previousFocus?.focus({ preventScroll: true });
+        resolve(granted);
+      };
+      form.addEventListener('submit', submit);
+      dialog.addEventListener('close', closed);
+      dialog.showModal();
+      input.focus({ preventScroll: true });
+    });
+    return volumePasswordRequest;
+  }
+
+  async function enterVolumeTwo() {
+    if (state.busy || state.navigating) return;
+    if (!volumeAccess && !await requestVolumeAccess()) return;
+    if (state.busy || state.navigating) return;
+    fadeRoboticsResidue();
+    state.navigating = true;
+    $('main-content').inert = true;
+    document.querySelector('.site-header').inert = true;
+    document.body.classList.add('volume-transitioning');
+    $('announcement').textContent = 'Opening Volume 02. Follow curious down the rabbit hole.';
+    const motions = [];
+    let overlay, interrupted = false;
+    const finish = () => {
+      interrupted = true;
+      motions.forEach((motion) => { try { motion.finish(); } catch {} });
+    };
+    const onKey = (event) => { if (event.key === 'Escape') finish(); };
+    const play = async (element, frames, duration, extra = {}) => {
+      if (interrupted) return;
+      const motion = element.animate(frames, { duration, fill: 'forwards', easing: 'ease-in-out', ...extra });
+      motions.push(motion);
+      await motion.finished;
+    };
+    window.addEventListener('resize', finish);
+    document.addEventListener('keydown', onKey);
+    try {
+      showcase.forEach((work) => { const photo = new Image(); photo.src = work.image; });
+      if (reducedMotion.matches) return;
+      overlay = document.createElement('div');
+      overlay.className = 'volume-portal';
+      overlay.setAttribute('aria-hidden', 'true');
+      overlay.innerHTML = `<span class="portal-edition">VOLUME 02 / A DIFFERENT WAY IN</span><p class="portal-sentence">A club for <span class="portal-word">curious</span> people.</p><div class="portal-hole"></div><div class="rabbit-tunnel">${Array.from({ length: 16 }, (_, i) => `<span class="rabbit-ring" style="--ring-color:${['#b4f4bc', '#ebbe9f', '#d8c9ef'][i % 3]}"></span>`).join('')}${['?', 'idea', '02', '✳', 'what if', '↘'].map((word, i) => `<span class="falling-object" style="left:${12 + i * 15}%;top:${15 + (i % 3) * 25}%">${word}</span>`).join('')}</div>`;
+      document.body.append(overlay);
+      const sentence = overlay.querySelector('.portal-sentence');
+      const word = overlay.querySelector('.portal-word');
+      const hole = overlay.querySelector('.portal-hole');
+      const tunnel = overlay.querySelector('.rabbit-tunnel');
+      await play(sentence, [{ opacity: 0, transform: 'translateY(20px)' }, { opacity: 1, transform: 'translateY(0)' }], 600);
+      await play(sentence, [{ opacity: 1 }, { opacity: 1 }], 1050);
+      if (interrupted) return;
+      const rect = word.getBoundingClientRect();
+      const diameter = Math.max(110, rect.width);
+      Object.assign(hole.style, { width: `${diameter}px`, height: `${diameter}px`, left: `${rect.left + rect.width / 2 - diameter / 2}px`, top: `${rect.top + rect.height / 2 - diameter / 2}px` });
+      await Promise.all([
+        play(word, [{ opacity: 1, transform: 'scale(1)', filter: 'blur(0)' }, { opacity: 0, transform: 'scale(.2) rotate(18deg)', filter: 'blur(6px)' }], 850),
+        play(hole, [{ opacity: 0, transform: 'scale(.15) rotate(-20deg)' }, { opacity: 1, transform: 'scale(1) rotate(0)' }], 1000)
+      ]);
+      if (interrupted) return;
+      const fullScale = Math.hypot(window.innerWidth, window.innerHeight) * 2.2 / diameter;
+      await Promise.all([
+        play(sentence, [{ opacity: 1, transform: 'translateY(0)' }, { opacity: 0, transform: 'translateY(-80px) scale(1.3)' }], 850),
+        play(hole, [{ transform: 'scale(1)' }, { transform: `scale(${fullScale}) rotate(35deg)` }], 1400, { easing: 'cubic-bezier(.65,0,.9,.45)' })
+      ]);
+      if (interrupted) return;
+      tunnel.style.opacity = '1';
+      overlay.dataset.phase = 'falling';
+      await Promise.all([
+        ...[...tunnel.querySelectorAll('.rabbit-ring')].map((ring, i) => play(ring, [
+          { opacity: 0, transform: `translate(-50%,-50%) rotate(${i * 11}deg) scale(.03)` },
+          { opacity: .8, transform: `translate(-50%,-50%) rotate(${i * 11 + 30}deg) scale(.35)`, offset: .35 },
+          { opacity: 0, transform: `translate(-50%,-50%) rotate(${i * 11 + 95}deg) scale(5)` }
+        ], 1800, { delay: i * 70, easing: 'cubic-bezier(.65,.05,.9,.5)' })),
+        ...[...tunnel.querySelectorAll('.falling-object')].map((object, i) => play(object, [
+          { opacity: 0, transform: 'scale(.1) rotate(-20deg)' },
+          { opacity: .8, transform: 'scale(.8) rotate(10deg)', offset: .35 },
+          { opacity: 0, transform: `translate(${i % 2 ? 200 : -200}px,450px) scale(3) rotate(70deg)` }
+        ], 2200, { delay: i * 110 }))
+      ]);
+    } catch (error) {
+      if (!interrupted) console.warn('Volume 02 opened without its remaining motion.', error);
+    } finally {
+      window.removeEventListener('resize', finish);
+      document.removeEventListener('keydown', onKey);
+      state.busy = false;
+      state.navigating = false;
+      history.pushState(null, '', '#volume-02');
+      route();
+      state.navigating = true;
+      if (overlay && !interrupted) {
+        try { await play(overlay, [{ opacity: 1 }, { opacity: 0 }], 600); } catch {}
+      }
+      motions.forEach((motion) => motion.cancel());
+      overlay?.remove();
+      state.navigating = false;
+      $('main-content').inert = false;
+      document.querySelector('.site-header').inert = false;
+      document.body.classList.remove('volume-transitioning');
+      $('wonderland-title').focus({ preventScroll: true });
+    }
+  }
+
   function route() {
     if (state.busy || state.navigating) return;
     const [rawView, slug] = location.hash.slice(1).split('/');
     const courseAnchor = rawView === 'robotics-course' || rawView === 'robotics-modules';
-    const requested = courseAnchor ? 'robotics' : rawView;
+    const galleryAnchor = rawView === 'wonderland-gallery';
+    const requested = courseAnchor ? 'robotics' : galleryAnchor ? 'volume-02' : rawView;
     const view = Object.hasOwn(views, requested) ? requested : 'collections';
+    if (view === 'volume-02' && !volumeAccess) {
+      const destination = location.hash;
+      history.replaceState(null, '', `#${state.view}`);
+      requestVolumeAccess().then((granted) => {
+        if (!granted) return;
+        history.pushState(null, '', destination);
+        route();
+      });
+      return;
+    }
     const changed = view !== state.view;
+    if (changed && view !== 'collections') fadeRoboticsResidue();
     state.view = view;
     document.body.dataset.view = view;
     Object.entries(views).forEach(([key, element]) => { element.hidden = key !== view; });
     activateTab(view);
-    document.title = `${view === 'collections' ? 'Makerspace' : view === 'robotics' ? 'Robotics — Makerspace' : 'Future Projects — Makerspace'} · SBHS 2026`;
+    document.title = `${view === 'collections' ? 'Makerspace' : view === 'robotics' ? 'Robotics — Makerspace' : view === 'volume-02' ? 'Volume 02 — Makerspace' : 'Future Projects — Makerspace'} · SBHS 2026–27`;
     if (view === 'collections' && slug) {
       const index = tools.findIndex((tool) => tool.slug === slug);
       if (index >= 0) openBook(index, !state.open);
     }
     if (changed) window.scrollTo({ top: 0, behavior: 'instant' });
     if (courseAnchor) $('robotics-course').scrollIntoView({ behavior: reducedMotion.matches ? 'instant' : 'smooth', block: 'start' });
+    if (galleryAnchor) $('wonderland-gallery').scrollIntoView({ behavior: reducedMotion.matches ? 'instant' : 'smooth', block: 'start' });
     if (view === 'future-projects' && slug) {
       const project = projects.find((item) => item.slug === slug);
       if (project) $(`project-${project.slug}`).scrollIntoView({ behavior: reducedMotion.matches ? 'instant' : 'smooth', block: 'start' });
@@ -1805,7 +2207,7 @@
 
   let suppressPageClickUntil = 0;
   function clickPage(event, direction) {
-    if (event.defaultPrevented || event.target.closest('a,button,input,textarea,select,[contenteditable]')) return;
+    if (event.defaultPrevented || event.target.closest('a,button,details,summary,input,textarea,select,[contenteditable]')) return;
     if (Date.now() < suppressPageClickUntil || window.getSelection()?.toString()) return;
     if (window.innerWidth <= 900) {
       // Stacked pages retain left/back and right/forward tap regions.
@@ -1816,6 +2218,7 @@
   }
 
   function buildProjects() {
+    $('wonderland-experiments').innerHTML = showcase.map((work, index) => `<article class="wonderland-work"><a class="wonderland-work-image" href="#collections/${work.tools[0]}" aria-label="Explore ${escape(work.category.toLowerCase())}">${picture(work.image, work.alt, 'loading="lazy" decoding="async"')}<span>${String(index + 1).padStart(2, '0')} / ${escape(work.category)}</span></a><div class="wonderland-work-copy"><h3>${escape(work.title)}</h3><p>${escape(work.description)}</p><span class="wonderland-maker">${work.maker ? `Made by ${escape(work.maker)}` : 'EXAMPLE PROJECT / STOCK PHOTO'}</span><span class="wonderland-photo-credit">${credit(work.credit)}</span><a class="wonderland-work-link" href="#collections/${work.tools[0]}">Try the tools ↗</a></div></article>`).join('');
     $('project-index-links').innerHTML = projects.map((project, index) => `<a href="#future-projects/${project.slug}"><span>${String(index + 1).padStart(2, '0')}</span>${escape(project.title)}</a>`).join('');
     $('projects-list').innerHTML = projects.map((project, index) => `<article class="project-study" id="project-${project.slug}" aria-labelledby="project-title-${index}">
       <header class="project-study-heading"><span class="project-study-number">${String(index + 1).padStart(2, '0')}</span><h2 id="project-title-${index}">${escape(project.title)}</h2></header>
@@ -1833,7 +2236,6 @@
     wrapper.append(poster, roboticsPhotoCredit);
   }
 
-  $('skip-intro').addEventListener('click', finishIntro);
   $('open-book').addEventListener('click', () => openBook());
   document.querySelectorAll('.nav-link[data-view]').forEach((link) => link.addEventListener('click', (event) => {
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || state.busy || state.navigating) return;
@@ -1889,20 +2291,79 @@
   $('previous-page').addEventListener('click', () => turnPage(-1));
   $('poster-page').addEventListener('click', (event) => clickPage(event, -1));
   $('detail-page').addEventListener('click', (event) => clickPage(event, 1));
-  $('about-button').addEventListener('click', () => showClub());
   $('robotics-club-button').addEventListener('click', () => showClub());
-  $('book-spread').addEventListener('click', (event) => {
-    if (event.target.closest('[data-replay-intro]') && !state.busy && !state.navigating) { showIntro(); $('skip-intro').focus(); }
+  const volumeSelector = document.querySelector('.volume-selector');
+  let volumeCloseTimer;
+  const setVolumeMenu = (expanded) => {
+    clearTimeout(volumeCloseTimer);
+    volumeSelector.classList.toggle('is-expanded', expanded);
+    $('footer-volume').setAttribute('aria-expanded', String(expanded));
+    $('volume-options').inert = !expanded;
+  };
+  const enterVolumeMenu = (event) => { if (event.pointerType === 'mouse') setVolumeMenu(true); };
+  const leaveVolumeMenu = (event) => {
+    if (volumeSelector.contains(event.relatedTarget)) return;
+    clearTimeout(volumeCloseTimer);
+    volumeCloseTimer = setTimeout(() => {
+      if (!volumeSelector.contains(document.activeElement) && !volumeSelector.matches(':hover')) setVolumeMenu(false);
+    }, 180);
+  };
+  // Both options share a real hit area, and re-entering either cancels closing.
+  for (const element of [volumeSelector, $('volume-options')]) {
+    element.addEventListener('pointerenter', enterVolumeMenu);
+    element.addEventListener('pointerleave', leaveVolumeMenu);
+  }
+  volumeSelector.addEventListener('focusin', () => setVolumeMenu(true));
+  volumeSelector.addEventListener('focusout', () => requestAnimationFrame(() => {
+    if (!volumeSelector.contains(document.activeElement) && !volumeSelector.matches(':hover')) setVolumeMenu(false);
+  }));
+  $('footer-volume').addEventListener('click', () => setVolumeMenu(true));
+  document.addEventListener('pointerdown', (event) => { if (!volumeSelector.contains(event.target)) setVolumeMenu(false); });
+  volumeSelector.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    event.stopPropagation();
+    $('footer-volume').focus({ preventScroll: true });
+    setVolumeMenu(false);
   });
+  $('volume-two-button').addEventListener('click', async () => {
+    setVolumeMenu(false);
+    if (state.busy || state.navigating || !await requestVolumeAccess()) return;
+    enterVolumeTwo();
+  });
+  $('volume-password-cancel').addEventListener('click', () => $('volume-password-dialog').close());
+  $('book-spread').addEventListener('click', (event) => {
+    const summary = event.target.closest('.made-project > summary');
+    if (summary && !state.busy && !state.navigating) {
+      event.preventDefault();
+      const details = summary.parentElement;
+      const opening = !(disclosureMotions.get(details)?.opening ?? details.open);
+      if (opening) details.parentElement.querySelectorAll('.made-project[open]').forEach((other) => {
+        if (other !== details) animateProjectDisclosure(other, false);
+      });
+      animateProjectDisclosure(details, opening);
+      return;
+    }
+    if (event.target.closest('[data-leaders]')) turnPage(1);
+    if (event.target.closest('[data-club-page]')) turnPage(-1);
+  });
+  for (const type of ['selectstart', 'copy', 'cut', 'dragstart', 'contextmenu']) {
+    document.addEventListener(type, (event) => {
+      const selection = window.getSelection();
+      const element = event.target.closest ? event.target : event.target.parentElement;
+      const selected = type === 'copy' || type === 'cut' ? selection?.anchorNode?.parentElement : null;
+      if (element?.closest('.poster-page,.cover-face,.cover-spine') || selected?.closest('.poster-page,.cover-face,.cover-spine')) event.preventDefault();
+    });
+  }
   document.addEventListener('keydown', (event) => {
-    if (state.view !== 'collections' || document.body.classList.contains('intro-active') || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) return;
+    if (state.view !== 'collections' || document.body.classList.contains('intro-active') || $('volume-password-dialog').open || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || event.target.closest('details,summary')) return;
     if (state.open && event.key === 'ArrowRight') { event.preventDefault(); turnPage(1); }
     if (state.open && event.key === 'ArrowLeft') { event.preventDefault(); turnPage(-1); }
     if (state.open && event.key === 'Escape') closeBook();
   });
   let touchStart = null;
   $('book-spread').addEventListener('touchstart', (event) => {
-    if (event.touches.length === 1 && !event.target.closest('a,button')) touchStart = { x: event.touches[0].clientX, y: event.touches[0].clientY };
+    touchStart = null;
+    if (event.touches.length === 1 && !event.target.closest('a,button,details,summary')) touchStart = { x: event.touches[0].clientX, y: event.touches[0].clientY };
   }, { passive: true });
   $('book-spread').addEventListener('touchend', (event) => {
     if (!touchStart || !event.changedTouches.length) return;
