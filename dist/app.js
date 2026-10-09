@@ -1044,15 +1044,21 @@
     };
     const base = makeTexture(width, height);
     const burned = makeTexture(width, height);
-    const maskWidth = Math.ceil(width / 4);
-    const maskHeight = Math.ceil(height / 4);
+    const printed = makeTexture(width, height);
+    const revealedPrint = makeTexture(width, height);
+    const warmPrint = makeTexture(width, height);
+    const outline = makeTexture(width, height);
+    const maskWidth = Math.ceil(width / 2);
+    const maskHeight = Math.ceil(height / 2);
     const mask = makeTexture(maskWidth, maskHeight, 1);
     const heat = makeTexture(maskWidth, maskHeight, 1);
     const charMask = makeTexture(maskWidth, maskHeight, 1);
     const charred = makeTexture(width, height);
+    const printHeat = makeTexture(maskWidth, maskHeight, 1);
     const maskPixels = mask.paint.createImageData(maskWidth, maskHeight);
     const heatPixels = heat.paint.createImageData(maskWidth, maskHeight);
     const charPixels = charMask.paint.createImageData(maskWidth, maskHeight);
+    const printHeatPixels = printHeat.paint.createImageData(maskWidth, maskHeight);
     const clamp = (value) => Math.max(0, Math.min(1, value));
     const noise = (x, y) => {
       const value = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
@@ -1071,8 +1077,25 @@
       const c = lattice(ix, iy + 1), d = lattice(ix + 1, iy + 1);
       return (a + (b - a) * sx) * (1 - sy) + (c + (d - c) * sx) * sy;
     };
-    // A coherent, uneven burn travels from the ignition point, rather than a wipe.
-    const burnField = (u, v) => clamp(.04 + Math.hypot(u - .05, (v - .95) * 1.1) * .58
+    const ignition = { u: .035, v: clamp((Math.min(top + height * .93, window.innerHeight - 95) - top) / height) };
+    const ignitionPoint = { x: left + width * ignition.u, y: top + height * ignition.v };
+    // Register the flame to the photographed lighter's nozzle, not the image box.
+    // The forearm angles down and extends beyond the viewport at every size.
+    const lighter = document.createElement('div');
+    lighter.className = 'robotics-lighter-hand';
+    lighter.innerHTML = '<img src="assets/lighter-hand.png" alt="" decoding="async">';
+    const lighterAngle = 48;
+    const lighterWidth = Math.max(620, (window.innerHeight + 100 - ignitionPoint.y) / .69);
+    const lighterHeight = lighterWidth / 3;
+    Object.assign(lighter.style, { width: `${lighterWidth}px`, height: `${lighterHeight}px`, opacity: '0' });
+    scene.appendChild(lighter);
+    const lighterReady = preparePictures(lighter);
+    const nozzle = { x: ignitionPoint.x, y: ignitionPoint.y + 12 };
+    const lighterAt = (x, y, angle = lighterAngle) => `translate(${x - lighterWidth * .088}px,${y - lighterHeight * .245}px) rotate(${angle}deg)`;
+    const lighterAway = lighterAt(window.innerWidth + lighterWidth * .15, window.innerHeight + 100, 60);
+    lighter.style.transform = lighterAway;
+    // A coherent, uneven burn travels from the lighter's contact point.
+    const burnField = (u, v) => clamp(.04 + Math.hypot(u - ignition.u, (v - ignition.v) * 1.1) * .58
       + .065 * (turbulence(u * 12, v * 17) - .5)
       + .03 * (turbulence(u * 39, v * 47) - .5)
       - .075 * Math.exp(-Math.abs(turbulence(u * 7, v * 9) - .5) * 18));
@@ -1080,7 +1103,7 @@
     for (let y = 0; y < maskHeight; y++) for (let x = 0; x < maskWidth; x++) {
       thresholds[y * maskWidth + x] = Math.min(.96, burnField(x / maskWidth, y / maskHeight));
     }
-    const drawWords = (paint, dx, dy, progress = null) => {
+    const drawWords = (paint, dx, dy) => {
       paint.textBaseline = 'alphabetic';
       for (const glyph of glyphs) {
         paint.font = glyph.font;
@@ -1088,14 +1111,31 @@
           const metrics = paint.measureText(glyph.letter);
           glyph.ascent = metrics.fontBoundingBoxAscent ?? parseFloat(glyph.font.match(/[\d.]+px/)?.[0] || '16') * .8;
         }
-        const age = progress === null ? 1 : clamp((progress - burnField((glyph.rect.left - left) / width, (glyph.rect.top - top) / height)) / .13);
-        paint.fillStyle = age < .65 ? '#3c241a' : glyph.color;
-        paint.shadowColor = '#ff6927';
-        paint.shadowBlur = progress === null ? 0 : (1 - age) * 5;
+        paint.fillStyle = glyph.color;
         paint.fillText(glyph.letter, glyph.rect.left + dx, glyph.rect.top + dy + glyph.ascent);
       }
       paint.shadowBlur = 0;
     };
+    drawWords(printed.paint, -left, -top);
+    // Uneven edge fibres, shallow bites and a few larger tears all belong to the
+    // same surface, so they stay attached as the sheet bends and burns.
+    const tear = (distance, length, edge) => {
+      const u = distance / length;
+      const grain = 1.2 + noise(Math.floor(distance / 2), edge) * 2.3;
+      const waviness = turbulence(distance * .13, edge * 11) * 3.5;
+      const bite = Math.max(0, 1 - Math.abs(u - [.31, .72, .22, .61][edge]) / .025) * 8;
+      const nick = Math.max(0, 1 - Math.abs(u - [.78, .19, .84, .37][edge]) / .012) * 5;
+      return grain + waviness + bite + nick;
+    };
+    outline.paint.beginPath();
+    for (let x = 0; x <= width; x += 2) {
+      if (!x) outline.paint.moveTo(x, tear(x, width, 0));
+      else outline.paint.lineTo(x, tear(x, width, 0));
+    }
+    for (let y = 0; y <= height; y += 2) outline.paint.lineTo(width - tear(y, height, 1), y);
+    for (let x = width; x >= 0; x -= 2) outline.paint.lineTo(x, height - tear(x, width, 2));
+    for (let y = height; y >= 0; y -= 2) outline.paint.lineTo(tear(y, height, 3), y);
+    outline.paint.closePath();outline.paint.fillStyle = '#fff';outline.paint.fill();
     base.paint.fillStyle = '#eee7d6';
     base.paint.fillRect(0, 0, width, height);
     if (paperTexture) base.paint.drawImage(paperTexture, 0, 0, width, height);
@@ -1124,6 +1164,8 @@
     if (paperTexture) base.paint.drawImage(paperTexture, 0, 0, width, height);
     base.paint.globalCompositeOperation = 'multiply';
     base.paint.drawImage(ink.surface, 0, 0, width, height);
+    base.paint.globalCompositeOperation = 'destination-in';
+    base.paint.drawImage(outline.surface, 0, 0, width, height);
     base.paint.globalCompositeOperation = 'source-over';
 
     const columns = 12, rows = 16;
@@ -1145,7 +1187,10 @@
       context.closePath();context.clip();
       context.transform(ax, ay, bx, by, p.x - ax * a.x - bx * a.y, p.y - ay * a.x - by * a.y);
       context.drawImage(source, 0, 0, source.width, source.height, 0, 0, width, height);
-      if (shade) { context.fillStyle = `rgba(48,35,15,${shade})`;context.fillRect(0, 0, width, height); }
+      if (shade) {
+        context.globalCompositeOperation = 'source-atop';
+        context.fillStyle = `rgba(48,35,15,${shade})`;context.fillRect(0, 0, width, height);
+      }
       context.restore();
     };
     const renderSheet = (source, position, crumple) => {
@@ -1225,9 +1270,8 @@
     const flat = { x: left, y: top, sx: 1, sy: 1 };
     const renderBurn = (progress, time) => {
       clear();
-      // The print is already underneath the paper: burning holes physically
-      // expose it, and a short amber heat glow cools into the normal typography.
-      drawWords(context, 0, 0, progress);
+      // Paper consumption and ink cooling share a spatial mask. Every part of
+      // every stroke crosses the hot edge separately; a glyph never switches at once.
       const edges = [];
       for (let y = 0; y < maskHeight; y++) for (let x = 0; x < maskWidth; x++) {
         const index = y * maskWidth + x;
@@ -1235,6 +1279,7 @@
         const amount = clamp((distance + .01) / .02);
         charPixels.data[index * 4 + 3] = Math.round(clamp((distance + .12) / .12) * 255);
         maskPixels.data[index * 4 + 3] = Math.round(amount * 255);
+        printHeatPixels.data[index * 4 + 3] = Math.round(amount * (1 - clamp(distance / .105)) * 255);
         const edge = Math.max(0, 1 - Math.abs(distance) / .014);
         heatPixels.data[index * 4] = 255;heatPixels.data[index * 4 + 1] = Math.round(36 + edge * 120);
         heatPixels.data[index * 4 + 2] = 24;heatPixels.data[index * 4 + 3] = Math.round(edge * 205);
@@ -1242,6 +1287,21 @@
       }
       mask.paint.putImageData(maskPixels, 0, 0);heat.paint.putImageData(heatPixels, 0, 0);
       charMask.paint.putImageData(charPixels, 0, 0);
+      printHeat.paint.putImageData(printHeatPixels, 0, 0);
+      revealedPrint.paint.clearRect(0, 0, width, height);
+      revealedPrint.paint.globalCompositeOperation = 'source-over';
+      revealedPrint.paint.drawImage(printed.surface, 0, 0, width, height);
+      revealedPrint.paint.globalCompositeOperation = 'destination-in';
+      revealedPrint.paint.drawImage(mask.surface, 0, 0, width, height);
+      revealedPrint.paint.globalCompositeOperation = 'source-over';
+      warmPrint.paint.clearRect(0, 0, width, height);
+      warmPrint.paint.globalCompositeOperation = 'source-over';
+      warmPrint.paint.drawImage(printed.surface, 0, 0, width, height);
+      warmPrint.paint.globalCompositeOperation = 'source-in';
+      warmPrint.paint.fillStyle = '#ed702e';warmPrint.paint.fillRect(0, 0, width, height);
+      warmPrint.paint.globalCompositeOperation = 'destination-in';
+      warmPrint.paint.drawImage(printHeat.surface, 0, 0, width, height);
+      warmPrint.paint.globalCompositeOperation = 'source-over';
       charred.paint.clearRect(0, 0, width, height);
       charred.paint.globalCompositeOperation = 'source-over';
       if (charTexture) charred.paint.drawImage(charTexture, 0, 0, width, height);
@@ -1253,11 +1313,15 @@
       burned.paint.globalCompositeOperation = 'source-over';
       burned.paint.drawImage(base.surface, 0, 0, width, height);
       burned.paint.drawImage(charred.surface, 0, 0, width, height);
+      burned.paint.globalCompositeOperation = 'destination-in';
+      burned.paint.drawImage(outline.surface, 0, 0, width, height);
       burned.paint.globalCompositeOperation = 'destination-out';
       burned.paint.drawImage(mask.surface, 0, 0, width, height);
       burned.paint.globalCompositeOperation = 'source-over';
       // The unconsumed paper stays wrinkled. Only exposed print below it is flat.
       renderSheet(burned.surface, flat, .48);
+      context.drawImage(revealedPrint.surface, left, top, width, height);
+      context.drawImage(warmPrint.surface, left, top, width, height);
       context.drawImage(heat.surface, left, top, width, height);
       prepareFlame(time);
       for (let i = 0; i < edges.length; i += Math.max(1, Math.ceil(edges.length / 36))) flame(edges[i].x, edges[i].y, .65 + noise(i, 6) * .85, time, i);
@@ -1304,7 +1368,7 @@
     const coverGrip = (angle) => {
       const radians = angle * Math.PI / 180;
       const z = book.width * .9 * Math.sin(radians);
-      const projection = 1300 / (1300 - z);
+      const projection = 2000 / (2000 - z);
       const x = (book.width - book.width * .9 * Math.cos(radians) - book.width / 2) * projection;
       const y = -book.height * .12 * projection;
       const tilt = book.pose.angle * Math.PI / 180;
@@ -1324,24 +1388,21 @@
       if (isInterrupted()) return;
       gripHand(true);
       await Promise.all([
-        animate(front, [{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(6deg)', offset: .23 }, { transform: 'rotateY(34deg)' }], { duration: 620, easing: 'cubic-bezier(.3,.65,.2,1)' }).finished,
-        animate(hand, [{ transform: handAt(0) }, { transform: handAt(6, -2), offset: .23 }, { transform: handAt(34, -8) }], { duration: 620, easing: 'cubic-bezier(.3,.65,.2,1)' }).finished
+        animate(front, [{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(5deg)', offset: .23 }, { transform: 'rotateY(22deg)' }], { duration: 720, easing: 'cubic-bezier(.3,.65,.2,1)' }).finished,
+        animate(hand, [{ transform: handAt(0) }, { transform: handAt(5, -2), offset: .23 }, { transform: handAt(22, -7) }], { duration: 720, easing: 'cubic-bezier(.3,.65,.2,1)' }).finished
       ]);
       if (isInterrupted()) return;
       // A short extra opening and wrist flick provide the paper's launch impulse.
       await Promise.all([
-        animate(front, [{ transform: 'rotateY(34deg)' }, { transform: 'rotateY(43deg)' }], { duration: 160, easing: 'cubic-bezier(.5,0,.8,.4)' }).finished,
-        animate(hand, [{ transform: handAt(34, -8) }, { transform: handAt(43, -15) }], { duration: 160, easing: 'cubic-bezier(.5,0,.8,.4)' }).finished
+        animate(front, [{ transform: 'rotateY(22deg)' }, { transform: 'rotateY(28deg)' }], { duration: 180, easing: 'cubic-bezier(.5,0,.8,.4)' }).finished,
+        animate(hand, [{ transform: handAt(22, -7) }, { transform: handAt(28, -12) }], { duration: 180, easing: 'cubic-bezier(.5,0,.8,.4)' }).finished
       ]);
       if (isInterrupted()) return;
       gripHand(false);
-      const exit = coverGrip(43);
+      const exit = coverGrip(28);
       const paperOrigin = { x: exit.x - width * .12, y: exit.y - height * .03 };
-      const closing = (async () => {
-        await animate(front, [{ transform: 'rotateY(43deg)' }, { transform: 'rotateY(31deg)' }], { duration: 240, easing: 'ease-out' }).finished;
-        if (isInterrupted()) return;
-        await animate(front, [{ transform: 'rotateY(31deg)' }, { transform: 'rotateY(0deg)' }], { duration: 580, delay: 170, easing: 'cubic-bezier(.35,.25,.15,1)' }).finished;
-      })();
+      const closing = animate(front, [{ transform: 'rotateY(28deg)' }, { transform: 'rotateY(20deg)', offset: .22 },
+        { transform: 'rotateY(9deg)', offset: .65 }, { transform: 'rotateY(0deg)' }], { duration: 780, easing: 'cubic-bezier(.3,.2,.2,1)' }).finished;
       await Promise.all([
         rasterMotion(1000, (progress) => {
           clear();const ease = 1 - Math.pow(1 - progress, 3);
@@ -1351,25 +1412,67 @@
             sx: .12 + .88 * ease, sy: .06 + .94 * ease, angle: (1 - ease) * -12 - Math.sin(progress * Math.PI) * 6 }, 1 - .4 * ease);
           context.globalAlpha = 1;
         }, 'flick-paper'),
-        animate(hand, [{ transform: handAt(43, -15) }, { transform: handAt(31, 2, 55, -35), offset: .35 }, { transform: handAt(0, 10, handWidth, -35) }], { duration: 430, easing: 'cubic-bezier(.45,0,.8,.4)' }).finished,
+        animate(hand, [{ transform: handAt(28, -12) }, { transform: handAt(20, 2, 55, -35), offset: .35 }, { transform: handAt(0, 10, handWidth, -35) }], { duration: 430, easing: 'cubic-bezier(.45,0,.8,.4)' }).finished,
         closing
       ]);
       if (isInterrupted()) return;
       await rasterMotion(280, (progress) => { clear();renderSheet(base.surface, flat, .6 - .12 * progress); }, 'unfold-paper');
       if (isInterrupted()) return;
-      await rasterMotion(360, (progress) => {
-        clear();renderSheet(base.surface, flat, .48);
-        prepareFlame(progress * .36);
-        flame(left + width * .05, top + height * .95, progress * 1.7, progress * .36);
-      }, 'ignite-paper');
-      if (isInterrupted()) return;
-      await rasterMotion(2400, (progress) => renderBurn(progress, progress * 2.4), 'burn-paper');
+      await lighterReady;
       if (isInterrupted()) return;
       await Promise.all([
-        rasterMotion(300, (progress) => { clear();drawWords(context, 0, 0);renderSmoke(1 + progress * .5, 2.4 + progress * .3); }, 'cooled-print'),
+        animate(lighter, [{ transform: lighterAway, opacity: 1 },
+          { transform: lighterAt(nozzle.x + 16, nozzle.y + 24, 53), opacity: 1, offset: .8 },
+          { transform: lighterAt(nozzle.x, nozzle.y), opacity: 1 }], { duration: 650, easing: 'cubic-bezier(.2,.65,.25,1)' }).finished,
+        rasterMotion(650, () => { clear();renderSheet(base.surface, flat, .48); }, 'lighter-arrival')
+      ]);
+      if (isInterrupted()) return;
+      const pilot = (time, strength = 1) => {
+        prepareFlame(time);
+        flame(nozzle.x, nozzle.y, .65 * strength, time, 17);
+        context.fillStyle = `rgba(62,141,250,${.8 * strength})`;
+        context.beginPath();context.ellipse(nozzle.x, nozzle.y - 3, 2.2, 4 * strength, 0, 0, Math.PI * 2);context.fill();
+      };
+      await Promise.all([
+        animate(lighter, [{ transform: lighterAt(nozzle.x, nozzle.y) },
+          { transform: lighterAt(nozzle.x + 2, nozzle.y + 3, 44), offset: .28 },
+          { transform: lighterAt(nozzle.x, nozzle.y) }], { duration: 260, easing: 'ease-in-out' }).finished,
+        rasterMotion(260, (progress) => {
+          clear();renderSheet(base.surface, flat, .48);
+          if (progress > .2 && progress < .55) for (let i = 0; i < 9; i++) {
+            const age = (progress - .2) / .35;
+            context.fillStyle = `rgba(255,221,125,${1 - age})`;
+            context.fillRect(nozzle.x + Math.cos(i * 2.4) * age * 24, nozzle.y - Math.abs(Math.sin(i * 2.4)) * age * 26, 1.5, 1.5);
+          }
+          if (progress > .32) pilot(progress * .26, clamp((progress - .32) * 5));
+        }, 'strike-lighter')
+      ]);
+      if (isInterrupted()) return;
+      await rasterMotion(800, (progress) => {
+        // The pilot touches the torn edge first. A small char patch then takes
+        // over, and only that flame propagates across the rest of the sheet.
+        if (progress > .35) renderBurn((progress - .35) / .65 * .055, .26 + progress * .8);
+        else { clear();renderSheet(base.surface, flat, .48); }
+        pilot(.26 + progress * .8);
+        if (progress > .55) flame(ignitionPoint.x, ignitionPoint.y, (progress - .55) * 2, progress * .8, 9);
+      }, 'ignite-paper');
+      if (isInterrupted()) return;
+      await Promise.all([
+        animate(lighter, [{ transform: lighterAt(nozzle.x, nozzle.y), opacity: 1 },
+          { transform: lighterAt(nozzle.x + 36, nozzle.y + 45, 54), opacity: 1, offset: .3 },
+          { transform: lighterAway, opacity: 1 }], { duration: 650, easing: 'cubic-bezier(.45,0,.8,.4)' }).finished,
+        rasterMotion(3200, (progress) => renderBurn(.055 + progress * 1.085, 1.06 + progress * 3.2), 'burn-paper')
+      ]);
+      if (isInterrupted()) return;
+      await Promise.all([
+        rasterMotion(300, (progress) => {
+          clear();context.drawImage(printed.surface, left, top, width, height);
+          renderSmoke(1.14 + progress * .5, 4.26 + progress * .3);
+        }, 'cooled-print'),
         animate(depth, [{ opacity: 1 }, { opacity: 0 }], { duration: 300, easing: 'ease-out' }).finished
       ]);
     } finally {
+      lighter.remove();
       restoreStyle(front, frontStyle);
       book.carrier.classList.remove('book-has-depth');
       depth.remove();
