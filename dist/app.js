@@ -947,11 +947,11 @@
     }
   }
 
-  function makePaperRelief({ data, width, height }) {
+  function makePaperRelief({ data, luminance, width, height }) {
     const values = new Float32Array(width * height);
     for (let index = 0; index < values.length; index++) {
       const pixel = index * 4;
-      values[index] = data[pixel + 3] ? (data[pixel] * .2126 + data[pixel + 1] * .7152 + data[pixel + 2] * .0722) / 255 : .78;
+      values[index] = luminance ? luminance[index] / 255 : data[pixel + 3] ? (data[pixel] * .2126 + data[pixel + 1] * .7152 + data[pixel + 2] * .0722) / 255 : .78;
     }
     const at = (x, y) => values[Math.max(0, Math.min(height - 1, y)) * width + Math.max(0, Math.min(width - 1, x))];
     const folds = new Float32Array(width * height * 3);
@@ -1107,11 +1107,9 @@
 
     // The same photograph supplies the local fold relief for the ink and the
     // moving sheet. Fine creases deform individual strokes before the sheet moves.
-    const reliefWidth = 96, reliefHeight = 128;
-    const reliefTexture = makeTexture(reliefWidth, reliefHeight, 1);
-    if (paperTexture) reliefTexture.paint.drawImage(paperTexture, 0, 0, reliefWidth, reliefHeight);
-    const reliefPixels = reliefTexture.paint.getImageData(0, 0, reliefWidth, reliefHeight);
-    const relief = makePaperRelief(reliefPixels);
+    // file:// images can be painted but their pixels cannot be read back.
+    // Sampled fold data preserves the exact material without a runtime image read.
+    const relief = makePaperRelief(window.MAKERSPACE_PAPER_RELIEF || { width: 1, height: 1, luminance: new Uint8Array([199]) });
     const ink = makeTexture(width, height);
     drawWords(ink.paint, -left, -top);
     const inkPixels = ink.paint.getImageData(0, 0, ink.surface.width, ink.surface.height);
