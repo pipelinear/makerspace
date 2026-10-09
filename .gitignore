@@ -2,6 +2,9 @@
 .sites-runtime/
 .env
 node_modules/
+.wrangler/
+.dev.vars
+.dev.vars.*
 .openai/
 MOTION_LOG.md
 dist/assets/README.md

@@ -177,13 +177,13 @@ window.MAKERSPACE = {
       tools: ['raspberry-pis', 'electronics', 'our-room']
     }
   ],
-  // Add uploaded signature images here. page is 'left' or 'right'; x/y/width
-  // are percentages of the paper. rotation is a small angle in degrees.
-  clubSignatures: [
-    { name: 'Nick Gaston', image: 'assets/signatures/nick-gaston.svg',
-      alt: 'Nick Gaston in handwritten lettering with a static orange flame and an ink flourish',
-      page: 'left', x: 10, y: 16, width: 72, rotation: -6 }
-  ],
+  clubSignatures: [],
+  signatureSettings: {
+    creatorUrl: 'https://www.textstudio.com/design/studio',
+    email: '668442@my.sbunified.org',
+    // Set this to the separate Makerspace upload service after Cloudflare setup.
+    apiUrl: ''
+  },
   clubLeaders: [
     { role: 'President', name: null, image: null, description: 'Helps shape the club and brings our projects together.' },
     { role: 'Captain', name: null, image: null, description: 'Helps makers get started and keeps the builds moving.' },

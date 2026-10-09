@@ -367,3 +367,45 @@ body[data-view="volume-02"] .wordmark{font-family:'Helvetica Neue',Arial,sans-se
 .poster-page .signature-page-number{left:8%}
 .detail-page .signature-page-number{right:8%}
 @media(max-width:900px){.book-stage .book-spread>#detail-page.is-signature-page{aspect-ratio:.827;min-height:0}}
+.signature-note{position:absolute;top:6%;left:8%;right:8%;max-width:32rem;color:var(--ink);font-family:var(--serif);text-align:left;z-index:2;user-select:text}
+.signature-note h2{font-size:clamp(1rem,2.1vw,1.8rem);font-weight:400;margin:0 0 .5em}
+.signature-note p{font-size:clamp(.65rem,1.05vw,.95rem);line-height:1.45;margin:.5em 0;max-width:34em}
+.signature-note a{text-decoration:underline;text-underline-offset:.2em;overflow-wrap:anywhere}
+.signature-note em{font-style:italic}
+.signature-note-actions{display:flex;gap:1.4em;align-items:center;margin-top:.8em}
+.signature-note-actions button,.signature-editor button{padding:.25em 0;border:0;background:none;color:inherit;font:inherit;font-size:clamp(.65rem,.85vw,.8rem);cursor:pointer;text-decoration:underline;text-underline-offset:.25em}
+.signature-note-actions button span{font-size:1.3em;margin-right:.2em}
+.signature-dialog{color:var(--ink);background:var(--paper);border:0;border-radius:0;width:min(90vw,31rem);max-height:85dvh;padding:2.2rem;box-shadow:0 12px 80px #172a2338;font-family:var(--serif);overflow-y:auto;scrollbar-width:none}
+.signature-dialog::-webkit-scrollbar{display:none}
+.signature-dialog::backdrop{background:#172a2370;backdrop-filter:blur(4px)}
+.signature-dialog h2{font-size:2rem;font-weight:400;margin:0 0 .5em}
+.signature-dialog h3{font-size:1.1rem;font-weight:400;margin:1.5em 0 .7em}
+.signature-dialog p{line-height:1.5;font-size:.95rem}
+.signature-dialog a{text-decoration:underline;text-underline-offset:.2em}
+.signature-dialog label{display:block;margin:1rem 0;font-size:.9rem}
+.signature-dialog input{display:block;width:100%;box-sizing:border-box;margin-top:.5em;padding:.7em .2em;background:transparent;border:0;border-bottom:1px solid #172a2350;border-radius:0;color:inherit;font:1rem var(--sans)}
+.signature-dialog input[type=file]{font-size:.8rem}
+.signature-dialog button{background:transparent;border:0;color:inherit;font:.85rem var(--sans);cursor:pointer;text-decoration:underline;text-underline-offset:.3em;padding:.5em 0}
+.signature-dialog button:disabled{opacity:.4;cursor:wait}
+.signature-dialog .signature-dialog-close{position:absolute;top:.6rem;right:1rem;text-decoration:none;font-size:1.5rem}
+.signature-preview,.signature-review-image{background:repeating-conic-gradient(#172a2309 0% 25%,transparent 0% 50%) 50% / 12px 12px;padding:1rem;min-height:3rem}
+.signature-preview img{max-width:100%;max-height:10rem;display:block;margin:auto;object-fit:contain}
+.signature-dialog .signature-small,.signature-empty{font-size:.75rem;opacity:.7}
+.signature-download:not([href]){display:none}
+.signature-admin-dialog{width:min(90vw,43rem)}
+.signature-admin-tools{display:flex;gap:1.5rem}
+.signature-review{display:grid;grid-template-columns:7rem 1fr;gap:.4rem 1rem;border-top:1px solid #172a2325;padding:1rem 0;align-items:center}
+.signature-review-image{grid-row:span 2;padding:.5rem;display:grid;place-items:center}
+.signature-review-image img{max-width:100%;max-height:4rem;object-fit:contain}
+.signature-review p{margin:0;overflow-wrap:anywhere}
+.signature-review button{margin-right:1.5em}
+.signature-entry.is-selected{outline:1px dashed #172a2380;outline-offset:5px;cursor:move;touch-action:none;z-index:3}
+.signature-editing .signature-entry{cursor:move;touch-action:none}
+.signature-editor{position:absolute;bottom:7%;right:6%;left:6%;z-index:5;background:var(--paper);box-shadow:0 0 0 .5rem var(--paper);font:.7rem var(--sans);display:flex;flex-wrap:wrap;align-items:center;gap:.7em 1.3em;border-top:1px solid #172a2335;padding-top:.7em;text-align:left}
+.signature-editor>span{width:100%}
+.signature-editor label{display:flex;align-items:center;gap:.5em}
+.signature-editor input{width:6rem;accent-color:var(--ink)}
+.signature-editor select{border:0;background:var(--paper);color:inherit;font:inherit}
+.signature-editor p{width:100%;margin:0;font-size:.65rem}
+@media(max-width:900px){.signature-note h2{font-size:1.4rem}.signature-note p{font-size:.8rem}.signature-note-actions button{font-size:.7rem}.signature-dialog{padding:1.7rem}}
+@media(max-width:520px){.signature-note h2{font-size:1.15rem}.signature-note p{font-size:.67rem;line-height:1.35}.signature-note-actions{margin-top:.45em}.signature-note-actions button{font-size:.65rem}}

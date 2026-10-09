@@ -78,12 +78,13 @@
   function signaturePageHTML(side) {
     const bounded = (value, fallback, min, max) => Number.isFinite(Number(value)) ? Math.max(min, Math.min(max, Number(value))) : fallback;
     return `<div class="signature-paper" role="group" aria-label="Club signatures, ${side} page"><div class="signature-marks">${clubSignatures.filter((signature) => signature.page === side).map((signature) => {
-      const width = bounded(signature.width, 55, 10, 85);
+      const width = bounded(signature.width, 38, 5, 85);
       const x = bounded(signature.x, 12, 0, 100 - width);
-      const y = bounded(signature.y, 18, 0, 75);
+      const y = bounded(signature.y, side === 'left' ? 40 : 12, 0, 94 - (signature.height || 10));
       const rotation = bounded(signature.rotation, 0, -20, 20);
-      return `<figure class="signature-entry" style="left:${x}%;top:${y}%;width:${width}%;transform:rotate(${rotation}deg)">${picture(signature.image, signature.alt || `${signature.name}’s signature`, 'loading="eager" decoding="async" draggable="false"')}<figcaption class="sr-only">${escape(signature.name)}</figcaption></figure>`;
-    }).join('')}</div><span class="signature-page-number" aria-hidden="true">${SIGNATURES_PAGE * 2 + (side === 'left' ? 1 : 2)}</span></div>`;
+      const selected = window.MAKERSPACE_SIGNATURES?.isEditing(signature.id);
+      return `<figure class="signature-entry${selected ? ' is-selected' : ''}"${signature.id ? ` data-signature-id="${escape(signature.id)}"` : ''}${selected ? ' tabindex="0" aria-label="Move signature with arrow keys or drag"' : ''} style="left:${x}%;top:${y}%;width:${width}%;transform:rotate(${rotation}deg)">${picture(signature.image, signature.alt || `${signature.name}’s signature`, 'loading="eager" decoding="async" draggable="false"')}<figcaption class="sr-only">${escape(signature.name)}</figcaption></figure>`;
+    }).join('')}</div>${side === 'left' ? window.MAKERSPACE_SIGNATURES?.noteHTML() || '' : window.MAKERSPACE_SIGNATURES?.toolbarHTML() || ''}<span class="signature-page-number" aria-hidden="true">${SIGNATURES_PAGE * 2 + (side === 'left' ? 1 : 2)}</span></div>`;
   }
 
   function ideaHTML(tool, idea, index) {
@@ -2223,6 +2224,7 @@
 
   let suppressPageClickUntil = 0;
   function clickPage(event, direction) {
+    if (window.MAKERSPACE_SIGNATURES?.interacting()) return;
     if (event.defaultPrevented || event.target.closest('a,button,details,summary,input,textarea,select,[contenteditable]')) return;
     if (Date.now() < suppressPageClickUntil || window.getSelection()?.toString()) return;
     if (window.innerWidth <= 900) {
@@ -2371,7 +2373,7 @@
     });
   }
   document.addEventListener('keydown', (event) => {
-    if (state.view !== 'collections' || document.body.classList.contains('intro-active') || $('volume-password-dialog').open || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || event.target.closest('details,summary')) return;
+    if (state.view !== 'collections' || document.body.classList.contains('intro-active') || $('volume-password-dialog').open || window.MAKERSPACE_SIGNATURES?.interacting() || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || event.target.closest('details,summary')) return;
     if (state.open && event.key === 'ArrowRight') { event.preventDefault(); turnPage(1); }
     if (state.open && event.key === 'ArrowLeft') { event.preventDefault(); turnPage(-1); }
     if (state.open && event.key === 'Escape') closeBook();
@@ -2379,7 +2381,7 @@
   let touchStart = null;
   $('book-spread').addEventListener('touchstart', (event) => {
     touchStart = null;
-    if (event.touches.length === 1 && !event.target.closest('a,button,details,summary')) touchStart = { x: event.touches[0].clientX, y: event.touches[0].clientY };
+    if (event.touches.length === 1 && !window.MAKERSPACE_SIGNATURES?.interacting() && !event.target.closest('a,button,details,summary,input,select')) touchStart = { x: event.touches[0].clientX, y: event.touches[0].clientY };
   }, { passive: true });
   $('book-spread').addEventListener('touchend', (event) => {
     if (!touchStart || !event.changedTouches.length) return;
@@ -2405,4 +2407,5 @@
   paintSpread();
   route();
   showIntro();
+  window.MAKERSPACE_SIGNATURES?.init({ repaint: paintSpread, available: () => state.open && state.page === SIGNATURES_PAGE && !state.busy && !state.navigating });
 })();

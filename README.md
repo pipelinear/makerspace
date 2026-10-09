@@ -22,4 +22,6 @@ A student club for design, fabrication, electronics, and art. Explore the tools 
 
 **Golden Time** · Tuesdays & Fridays, during homeroom. Beginners welcome.
 
-The last spread is for club signatures. Put signature images in `dist/assets/signatures/` and add them to `clubSignatures` in `dist/content.js`. Each entry has a name, image path, `page` (`left` or `right`), percentage positions `x` and `y`, percentage `width`, and optional `rotation` in degrees. Nick’s static signature and flame are included; the rest of the paper is open for members to sign.
+The final two pages are for member signatures. The small note links to TextStudio for creating a name with a transparent background. Until shared uploads are connected, members can prepare their PNG and email it with their name to **668442@my.sbunified.org**.
+
+The [signing desk service](signature-service/README.md) adds uploads, private admin sign-in, approval, automatic placement, and controls to move, resize, and remove signatures directly in the book. It runs separately on Cloudflare; the site stays on GitHub Pages. Set up the service once to enable these controls without editing the website for every signature.

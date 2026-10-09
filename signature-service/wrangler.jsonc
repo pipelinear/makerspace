@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "makerspace-signatures",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-10-08",
+  "workers_dev": true,
+  "triggers": { "crons": ["0 4 * * *"] },
+  "vars": { "ALLOWED_ORIGINS": "https://pipelinear.github.io" },
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "makerspace-signatures",
+    "database_id": "SET_BY_SETUP",
+    "migrations_dir": "migrations"
+  }],
+  "r2_buckets": [{ "binding": "SIGNATURE_IMAGES", "bucket_name": "makerspace-signatures" }]
+}
