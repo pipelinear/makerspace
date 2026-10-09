@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#b7ddd2">
+  <meta name="description" content="A field guide to the SBHS Makerspace. Explore the tools, future projects, and Robotics at Santa Barbara High School.">
+  <title>Makerspace — SBHS 2026</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23b7ddd2'/%3E%3Ctext x='4' y='25' font-family='Georgia' font-size='27' fill='%231c2823'%3EM%3C/text%3E%3C/svg%3E">
+  <link rel="preload" as="image" href="assets/book-hand-long.png">
+  <link rel="preload" as="image" href="assets/book-hand-release-long.png">
+  <link rel="preload" as="image" href="assets/club-hand-point.png">
+  <link rel="preload" as="image" href="assets/club-hand-tap.png">
+  <link rel="preload" as="image" href="assets/robotics-crumpled-paper.png">
+  <link rel="preload" as="image" href="assets/robotics-charred-paper.png">
+  <link rel="stylesheet" href="styles.css">
+  <script src="content.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <div class="intro" id="intro" aria-label="Welcome to Makerspace">
+    <span class="intro-edition">SBHS<br>2026</span>
+    <div class="intro-word"><span>Makerspace</span></div>
+    <span class="intro-location">Santa<br>Barbara</span>
+    <div class="intro-bottom"><span>A place for the things you haven’t made yet.</span><button id="skip-intro">Skip intro</button></div>
+  </div>
+  <header class="site-header">
+    <nav aria-label="Main navigation">
+      <a href="#collections" class="nav-link active" data-view="collections" aria-current="page">Collections</a>
+      <a href="#future-projects" class="nav-link" data-view="future-projects">Future Projects</a>
+      <a href="#robotics" class="nav-link" data-view="robotics">Robotics</a>
+    </nav>
+    <a class="wordmark" href="#collections" aria-label="Makerspace home">MAKERSPACE</a>
+    <button class="about-link" id="about-button">The club</button>
+  </header>
+  <main id="main-content">
+    <section id="collections-view" class="view collections-view" aria-label="Makerspace collections">
+      <div class="cover-stage book-stage" id="cover-stage">
+        <div class="reader" id="reader">
+          <div class="book-spread" id="book-spread" tabindex="-1" aria-label="Makerspace collection">
+            <div class="paper-page poster-page" id="poster-page" inert></div>
+            <article class="paper-page detail-page" id="detail-page" inert></article>
+            <div class="page-turn" id="page-turn" aria-hidden="true"></div>
+            <span class="book-binding" aria-hidden="true"></span>
+            <button class="closed-book" id="open-book" aria-label="Open the Makerspace book">
+          <span class="cover-front">
+          <span class="book-edge"></span>
+          <span class="cover-spine"><span>SBHS · MAKERSPACE · 2026</span></span>
+          <span class="cover-face">
+            <img id="cover-image" src="https://images.unsplash.com/photo-1742971366169-6efb57949d56?auto=format&fit=crop&w=1200&q=85" alt="A close-up of a real 3D printer" fetchpriority="high">
+            <span class="cover-shade"></span>
+            <span class="cover-title">THE MAKERSPACE<br>COLLECTION</span>
+            <span class="cover-caption">A FIELD GUIDE TO MAKING THINGS<br>SANTA BARBARA HIGH SCHOOL</span>
+            <span class="cover-volume">01</span>
+          </span>
+          </span>
+          <span class="cover-back" aria-hidden="true"><span class="paper-page poster-page" id="cover-back-page"></span></span>
+        </button>
+          </div>
+          <div class="reader-controls" id="reader-controls" inert><button id="previous-page">Previous</button><button id="next-page">Next</button></div>
+        </div>
+      </div>
+      <footer class="collection-footer"><span class="footer-year">25–26</span><span class="footer-volume" id="footer-volume">Vol. 01</span></footer>
+    </section>
+    <section id="projects-view" class="view project-notebook" aria-labelledby="projects-title" hidden>
+      <aside class="project-index">
+        <span class="project-index-edition">SBHS / 2026</span>
+        <h1 id="projects-title">Future<br> projects.</h1>
+        <p>Four ideas for our room.</p>
+        <nav aria-label="Project index" id="project-index-links"></nav>
+        <span class="project-index-note">Still in the planning stage.</span>
+      </aside>
+      <div class="project-studies" id="projects-list"></div>
+    </section>
+    <section id="robotics-view" class="view robotics-view" aria-labelledby="robotics-title" hidden>
+      <div class="robotics-hero"><div class="robotics-intro"><span class="eyebrow">COURSES / COMING TO THE MAKERSPACE</span><h1 id="robotics-title">Make it.<br>Code it.<br><em>Move it.</em></h1><p>Robotics at SBHS. A place to turn curiosity into something that moves, senses, and responds.</p><a href="#robotics-course" class="text-link">Inside the course</a></div><div class="robotics-poster"><img id="robotics-image" alt="A real educational robot, shown as an example for the future Robotics course" loading="lazy"><span class="robotics-stamp">ROBOTICS<br>SBHS / 2026</span><span class="robotics-poster-bottom">THINK WITH YOUR HANDS.</span></div></div>
+      <div class="course-note" id="robotics-course"><span class="eyebrow">A COURSE IN THE MAKING</span><p>We’re planning a Robotics class alongside the Makerspace club. Here’s an example of what the course could explore. The final syllabus, teacher, schedule, and enrollment details are still to come.</p></div>
+      <div id="robotics-modules" class="course-modules"><h2>From a first idea<br>to a first movement.</h2><div><article><span>01 / DESIGN</span><h3>Give an idea a shape.</h3><p>Sketch, model in CAD, and prototype a chassis or mechanism using the tools in the room.</p></article><article><span>02 / ELECTRONICS</span><h3>Make the connections.</h3><p>Explore circuits, motors, sensors, and microcontrollers. Learn how a robot reads the world.</p></article><article><span>03 / PROGRAMMING</span><h3>Tell it what to do.</h3><p>Write simple control programs, test movement, and work through the little surprises that make building interesting.</p></article><article><span>04 / BUILD TOGETHER</span><h3>Put it all in motion.</h3><p>Combine design, hardware, and code in a team project. Test it, rethink it, and make it work a little better.</p></article></div></div>
+      <div class="robotics-footnote"><p>You don’t have to wait for a class to start making.</p><button id="robotics-club-button">Meet the Makerspace club</button></div>
+    </section>
+  </main>
+  <div id="announcement" class="sr-only" aria-live="polite"></div>
+</body>
+</html>

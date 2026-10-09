@@ -1,0 +1,7 @@
+.DS_Store
+.sites-runtime/
+.env
+node_modules/
+.openai/
+MOTION_LOG.md
+dist/assets/README.md
