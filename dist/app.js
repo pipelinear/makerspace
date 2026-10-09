@@ -2224,7 +2224,7 @@
 
   let suppressPageClickUntil = 0;
   function clickPage(event, direction) {
-    if (window.MAKERSPACE_SIGNATURES?.interacting()) return;
+    if (window.MAKERSPACE_SIGNATURES?.interacting() || window.MAKERSPACE_BATTLE?.active()) return;
     if (event.defaultPrevented || event.target.closest('a,button,details,summary,input,textarea,select,[contenteditable]')) return;
     if (Date.now() < suppressPageClickUntil || window.getSelection()?.toString()) return;
     if (window.innerWidth <= 900) {
@@ -2373,7 +2373,7 @@
     });
   }
   document.addEventListener('keydown', (event) => {
-    if (state.view !== 'collections' || document.body.classList.contains('intro-active') || $('volume-password-dialog').open || window.MAKERSPACE_SIGNATURES?.interacting() || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || event.target.closest('details,summary')) return;
+    if (state.view !== 'collections' || document.body.classList.contains('intro-active') || $('volume-password-dialog').open || window.MAKERSPACE_SIGNATURES?.interacting() || window.MAKERSPACE_BATTLE?.active() || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || event.target.closest('details,summary')) return;
     if (state.open && event.key === 'ArrowRight') { event.preventDefault(); turnPage(1); }
     if (state.open && event.key === 'ArrowLeft') { event.preventDefault(); turnPage(-1); }
     if (state.open && event.key === 'Escape') closeBook();
@@ -2408,4 +2408,12 @@
   route();
   showIntro();
   window.MAKERSPACE_SIGNATURES?.init({ repaint: paintSpread, available: () => state.open && state.page === SIGNATURES_PAGE && !state.busy && !state.navigating });
+  window.MAKERSPACE_BATTLE?.init({
+    canStart: () => state.view === 'collections' && !state.busy && !state.navigating && !document.body.classList.contains('intro-active') && !$('volume-password-dialog').open && !window.MAKERSPACE_SIGNATURES?.interacting(),
+    closeMenu: () => setVolumeMenu(false),
+    lock: locked => { state.navigating = locked; updateControls(); },
+    bookRect: () => $(state.open ? 'book-spread' : 'open-book').getBoundingClientRect(),
+    prepareApprovals: async () => { history.replaceState(null, '', '#collections/club-signatures'); await openBook(SIGNATURES_PAGE, false, { forNavigation: true }); },
+    announce: message => { $('announcement').textContent = message; }
+  });
 })();

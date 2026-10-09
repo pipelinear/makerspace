@@ -91,11 +91,13 @@ test('admin login, approval, arranging, resizing, moving pages, and removal sync
   const f = ui(true); await flush(); assert.match(f.module.noteHTML(), /Upload/);
   assert.equal(f.window.MAKERSPACE.clubSignatures.length, 0);
   await f.click('[data-signature-upload]'); f.nodes.get('signature-upload-dialog').close();
-  await f.click('[data-signature-admin]');
-  f.nodes.get('signature-password').value = 'wrong'; await f.nodes.get('signature-login-form').emit('submit');
-  assert.match(f.nodes.get('signature-login-status').textContent, /did not match/);
-  f.nodes.get('signature-password').value = 'secret'; await f.nodes.get('signature-login-form').emit('submit');
-  assert.equal(f.nodes.get('signature-password').value, '');
+  assert.doesNotMatch(f.module.noteHTML(), /Admin sign in/);
+  assert.equal((await f.module.authenticateAdmin('wrong')).granted, false);
+  assert.equal((await f.module.authenticateAdmin('secret')).granted, true);
+  assert.equal(f.module.hasAdminSession(), false, 'successful login stays pending until the battle completes');
+  f.module.completeBattleLogin();
+  assert.equal(f.module.hasAdminSession(), true);
+  await f.module.openAdmin();
   assert.match(f.nodes.get('signature-admin-list').innerHTML, /A maker &lt;&amp;&gt;/);
   await f.click('[data-review-action]', { reviewAction: 'approve', id: 'b7d9fdcb-b65e-420e-a179-9500dff7bbaa' });
   assert.equal(f.window.MAKERSPACE.clubSignatures.length, 1);
@@ -110,4 +112,18 @@ test('admin login, approval, arranging, resizing, moving pages, and removal sync
   await f.click('[data-review-action]', { reviewAction: 'remove', id: 'b7d9fdcb-b65e-420e-a179-9500dff7bbaa' });
   assert.equal(f.window.MAKERSPACE.clubSignatures.length, 0);
   assert.ok(f.calls.filter(c => c.route.startsWith('/admin/') && c.route !== '/admin/login').every(c => c.headers.Authorization === 'Bearer ' + 'a'.repeat(64)));
+});
+test('preview results never establish admin access, and cancelled real logins are discarded', async () => {
+  const preview = ui(false); await flush();
+  assert.equal((await preview.module.authenticateAdmin('nick')).granted, true);
+  assert.equal((await preview.module.authenticateAdmin('Nick')).granted, false);
+  assert.equal(preview.module.hasAdminSession(), false);
+  assert.equal(preview.calls.length, 0);
+  const live = ui(true); await flush();
+  await live.module.authenticateAdmin('secret'); live.module.discardBattleLogin();
+  assert.equal(live.module.hasAdminSession(), false);
+  await flush(); assert.ok(live.calls.some(call => call.route === '/admin/logout'));
+  const inFlight = live.module.authenticateAdmin('secret'); live.module.discardBattleLogin();
+  await inFlight; live.module.completeBattleLogin();
+  assert.equal(live.module.hasAdminSession(), false, 'a response arriving after cancellation cannot grant access');
 });

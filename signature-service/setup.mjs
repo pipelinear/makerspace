@@ -33,7 +33,7 @@ try {
   const buckets = run(['r2', 'bucket', 'list'], { capture: true });
   if (!/^name:\s*makerspace-signatures\s*$/m.test(buckets)) run(['r2', 'bucket', 'create', 'makerspace-signatures']);
   run(['d1', 'migrations', 'apply', 'makerspace-signatures', '--remote']);
-  console.log('Choose a private admin password for the signing desk. It is stored as a Cloudflare secret.');
+  console.log('Enter nick for ADMIN_PASSWORD to use the selected battle password. It is stored as a Cloudflare secret.');
   run(['secret', 'put', 'ADMIN_PASSWORD']);
   const deployed = run(['deploy'], { capture: true });
   process.stdout.write(deployed);

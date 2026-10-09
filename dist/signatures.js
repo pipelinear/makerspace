@@ -5,7 +5,7 @@
   const base = settings.apiUrl.replace(/\/$/, '');
   const escape = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const emailURL = name => `mailto:${settings.email}?subject=${encodeURIComponent('Makerspace signature' + (name ? ` — ${name}` : ''))}&body=${encodeURIComponent('Name: ' + (name || '') + '\n\nPlease add my signature to the club book. I have attached my transparent PNG.')}`;
-  let repaint, available, token = '', adminRows = [], editing = '', saving = false, drag = null;
+  let repaint, available, token = '', pendingBattleToken = '', battleLoginGeneration = 0, adminRows = [], editing = '', saving = false, drag = null;
   let prepared = null, previewURL = '', submissionId = '', generation = 0;
   const adminURLs = new Set();
   const $ = id => document.getElementById(id);
@@ -20,7 +20,9 @@
     if (auth && response.status === 401) { token = ''; editing = ''; syncEditing(); }
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      throw new Error(data.error || 'Could not connect. Please try again.');
+      const error = new Error(data.error || 'Could not connect. Please try again.');
+      error.status = response.status;
+      throw error;
     }
     return binary ? response.blob() : response.json();
   }
@@ -37,7 +39,7 @@
   }
   function syncEditing() { document.body.classList.toggle('signature-editing', Boolean(editing && token)); }
   function noteHTML() {
-    return `<aside class="signature-note"><h2>Want to sign it?</h2><p><a href="${escape(settings.creatorUrl)}" target="_blank" rel="noopener noreferrer">Make your signature ↗</a>. Click <em>Add new text</em>, type your name, then export a <em>Transparent PNG</em>.</p><p>${base ? 'Come back and upload it below. An admin will review it before it appears in the book.' : `Email your image and name to <a href="${escape(emailURL(''))}">${escape(settings.email)}</a> to have it added.`}</p><div class="signature-note-actions"><button type="button" data-signature-upload aria-label="${base ? 'Upload your signature' : 'Prepare your signature for email'}"><span aria-hidden="true">↥</span> ${base ? 'Upload' : 'Prepare image'}</button>${base ? '<button type="button" data-signature-admin>Admin sign in</button>' : ''}</div></aside>`;
+    return `<aside class="signature-note"><h2>Want to sign it?</h2><p><a href="${escape(settings.creatorUrl)}" target="_blank" rel="noopener noreferrer">Make your signature ↗</a>. Click <em>Add new text</em>, type your name, then export a <em>Transparent PNG</em>.</p><p>${base ? 'Come back and upload it below. An admin will review it before it appears in the book.' : `Email your image and name to <a href="${escape(emailURL(''))}">${escape(settings.email)}</a> to have it added.`}</p><div class="signature-note-actions"><button type="button" data-signature-upload aria-label="${base ? 'Upload your signature' : 'Prepare your signature for email'}"><span aria-hidden="true">↥</span> ${base ? 'Upload' : 'Prepare image'}</button></div></aside>`;
   }
   function toolbarHTML() {
     const row = current();
@@ -114,8 +116,8 @@
   async function showAdmin() {
     if (!base) return;
     if (!$('signature-admin-dialog').open) $('signature-admin-dialog').showModal();
-    $('signature-login-form').hidden = Boolean(token); $('signature-admin-panel').hidden = !token;
-    if (!token) { $('signature-password').focus(); return; }
+    $('signature-session-ended').hidden = Boolean(token); $('signature-admin-panel').hidden = !token;
+    if (!token) return;
     const version = ++adminGeneration;
     message('signature-admin-status', 'Loading signatures…');
     try {
@@ -131,16 +133,29 @@
         const image = $('signature-admin-list').querySelector(`[data-review="${row.id}"] img`);
         if (image) image.src = url;
       }));
-    } catch (error) { message('signature-admin-status', error.message); $('signature-login-form').hidden = Boolean(token); $('signature-admin-panel').hidden = !token; }
+    } catch (error) { message('signature-admin-status', error.message); $('signature-session-ended').hidden = Boolean(token); $('signature-admin-panel').hidden = !token; }
   }
-  async function login(event) {
-    event.preventDefault(); const button = $('signature-login-form').querySelector('button[type="submit"]'); button.disabled = true;
-    message('signature-login-status', 'Signing in…');
+  function revokeBattleToken(abandoned) {
+    if (abandoned && base) fetch(base + '/admin/logout', { method: 'POST', headers: { Authorization: `Bearer ${abandoned}` }, keepalive: true }).catch(() => {});
+  }
+  async function authenticateAdmin(password) {
+    if (!base) return { granted: password === 'nick', mode: 'preview' };
+    const generation = ++battleLoginGeneration;
     try {
-      token = (await api('/admin/login', { method: 'POST', body: { password: $('signature-password').value } })).token;
-      $('signature-password').value = ''; message('signature-login-status', ''); await showAdmin();
-    } catch (error) { message('signature-login-status', error.message); }
-    finally { button.disabled = false; }
+      const received = (await api('/admin/login', { method: 'POST', body: { password } })).token;
+      if (generation !== battleLoginGeneration) { revokeBattleToken(received); return { granted: false, mode: 'live' }; }
+      pendingBattleToken = received;
+      return { granted: true, mode: 'live' };
+    } catch (error) {
+      if (error.status === 401) return { granted: false, mode: 'live' };
+      throw error;
+    }
+  }
+  function completeBattleLogin() { token = pendingBattleToken; pendingBattleToken = ''; }
+  function discardBattleLogin() {
+    battleLoginGeneration++;
+    const abandoned = pendingBattleToken; pendingBattleToken = '';
+    revokeBattleToken(abandoned);
   }
   async function reviewAction(button) {
     const row = adminRows.find(s => s.id === button.dataset.id); if (!row || saving) return;
@@ -196,11 +211,10 @@
     repaint = options.repaint; available = options.available;
     document.body.insertAdjacentHTML('beforeend', `
       <dialog id="signature-upload-dialog" class="signature-dialog" aria-labelledby="signature-upload-title"><button class="signature-dialog-close" data-signature-close aria-label="Close">×</button><h2 id="signature-upload-title">Leave your mark.</h2><p>Make your name in <a href="${escape(settings.creatorUrl)}" target="_blank" rel="noopener noreferrer">TextStudio ↗</a>, then export a Transparent PNG.</p><form id="signature-upload-form"><label>Your name<input id="signature-name" name="name" maxlength="80" required autocomplete="name"></label><label>Signature image<input id="signature-file" name="image" type="file" accept="image/png,.png" required></label><div id="signature-preview-wrap" class="signature-preview" hidden><img id="signature-preview" alt="Your prepared signature"></div><p id="signature-upload-status" role="status"></p>${base ? '<button id="signature-send" type="submit" disabled>Send for approval ↗</button><p class="signature-small">Your name and signature will be public if approved.</p>' : `<p>Attach your transparent PNG and name to an email to <a id="signature-email" href="${escape(emailURL(''))}">${escape(settings.email)}</a>.</p><a id="signature-download" class="signature-download" download="makerspace-signature.png">Download prepared PNG ↓</a><button id="signature-send" type="submit" disabled hidden></button>`}</form></dialog>
-      <dialog id="signature-admin-dialog" class="signature-dialog signature-admin-dialog" aria-labelledby="signature-admin-title"><button class="signature-dialog-close" data-signature-close aria-label="Close">×</button><h2 id="signature-admin-title">The signing desk.</h2><form id="signature-login-form"><label>Admin password<input id="signature-password" type="password" autocomplete="current-password" required maxlength="256"></label><p id="signature-login-status" role="status"></p><button type="submit">Sign in ↗</button></form><div id="signature-admin-panel" hidden><div class="signature-admin-tools"><button id="signature-admin-refresh">Refresh</button><button id="signature-logout">Sign out</button></div><div id="signature-admin-list"></div></div><p id="signature-admin-status" role="status"></p></dialog>`);
+      <dialog id="signature-admin-dialog" class="signature-dialog signature-admin-dialog" aria-labelledby="signature-admin-title"><button class="signature-dialog-close" data-signature-close aria-label="Close">×</button><h2 id="signature-admin-title">The signing desk.</h2><p id="signature-session-ended" hidden>Your session ended. Close the desk and open the capture ball above Vol. 02 to sign in again.</p><div id="signature-admin-panel" hidden><div class="signature-admin-tools"><button id="signature-admin-refresh">Refresh</button><button id="signature-logout">Sign out</button></div><div id="signature-admin-list"></div></div><p id="signature-admin-status" role="status"></p></dialog>`);
     $('signature-file').addEventListener('change', fileChanged);
     $('signature-name').addEventListener('input', () => { if ($('signature-email')) $('signature-email').href = emailURL($('signature-name').value.trim()); });
     $('signature-upload-form').addEventListener('submit', submit);
-    $('signature-login-form').addEventListener('submit', login);
     $('signature-admin-refresh').addEventListener('click', showAdmin);
     $('signature-logout').addEventListener('click', async () => {
       try { await api('/admin/logout', { auth: true, method: 'POST' }); token = ''; editing = ''; syncEditing(); repaint(); await showAdmin(); }
@@ -212,7 +226,6 @@
       const target = event.target;
       if (target.closest('[data-signature-close]')) target.closest('dialog').close();
       if (target.closest('[data-signature-upload]')) { clearPreview(); $('signature-upload-form').reset(); message('signature-upload-status', ''); $('signature-upload-dialog').showModal(); }
-      if (target.closest('[data-signature-admin]')) showAdmin();
       const review = target.closest('[data-review-action]'); if (review) reviewAction(review);
       if (target.closest('[data-signature-fit]')) savePlacement(true);
       if (target.closest('[data-signature-done]') && !saving) { editing = ''; syncEditing(); repaint(); showAdmin(); }
@@ -248,5 +261,5 @@
     setInterval(() => { if (available() && !document.hidden && !editing) refresh(); }, 30000);
     refresh();
   }
-  window.MAKERSPACE_SIGNATURES = { init, noteHTML, toolbarHTML, isEditing: id => Boolean(token && editing === id), interacting: () => Boolean(editing && available?.() || $('signature-upload-dialog')?.open || $('signature-admin-dialog')?.open) };
+  window.MAKERSPACE_SIGNATURES = { init, noteHTML, toolbarHTML, authenticateAdmin, completeBattleLogin, discardBattleLogin, hasAdminSession: () => Boolean(token), openAdmin: showAdmin, isEditing: id => Boolean(token && editing === id), interacting: () => Boolean(editing && available?.() || $('signature-upload-dialog')?.open || $('signature-admin-dialog')?.open) };
 })();
