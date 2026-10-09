@@ -389,14 +389,13 @@
       overlay.append(hand);
       document.body.append(overlay);
       const picturesReady = preparePictures(hand);
-      if (!state.open) await openBook(Math.floor(Math.random() * equipment.length), true, { forNavigation: true });
+      if (!state.open) await openBook(0, true, { forNavigation: true });
       if (!reducedMotion.matches && !interrupted) {
-        // A burst of sheets through the collection, easing back into the final chapter.
+        // Move forward once to the club chapter, without wrapping or repeating pages.
         const start = state.page;
-        const sequence = Array.from({ length: 18 }, (_, index) => (start + index + 1) % equipment.length);
-        sequence.push(CLUB_PAGE);
+        const sequence = Array.from({ length: Math.max(0, CLUB_PAGE - start) }, (_, index) => start + index + 1);
         for (let index = 0; index < sequence.length && !interrupted; index++) {
-          const duration = index === 0 ? 230 : index === sequence.length - 1 ? 390 : index > 14 ? 145 : 95;
+          const duration = index === 0 ? 230 : index === sequence.length - 1 ? 390 : index >= sequence.length - 4 ? 145 : 95;
           await turnPage(sequence[index] - state.page, { forNavigation: true, duration, shadowDuration: duration + 35, updateHistory: false });
         }
       }
