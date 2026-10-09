@@ -7,15 +7,15 @@ const flush = async () => { for (let i = 0; i < 8; i++) await Promise.resolve();
 
 function fixture({ width = 1440, height = 900, reduced = false, live = false, authenticated = false } = {}) {
   let now = 0, counter = 0, prepared = 0, opened = 0, committed = 0, discarded = 0;
-  const nodes = new Map(), timers = new Map(), frames = new Map(), listeners = {}, phases = [], locks = [], announcements = [], draws = [], music = [], clips = [], phaseTimes = [];
+  const nodes = new Map(), timers = new Map(), frames = new Map(), listeners = {}, phases = [], locks = [], announcements = [], draws = [], music = [], clips = [], phaseTimes = [], beams = [];
   let transform = { x: 0, y: 0, rotation: 0, alpha: 1 }; const stack = [];
   const context2D = {
-    clearRect() { transform = { x: 0, y: 0, rotation: 0, alpha: 1 }; }, fillRect() {},
+    clearRect() { transform = { x: 0, y: 0, rotation: 0, alpha: 1 }; }, fillRect() { if (this.fillStyle === '#d9573a') beams.push({ at: now, phase: nodes.get('admin-battle').dataset.phase, transform: { ...transform } }); },
     save() { stack.push({ ...transform }); }, restore() { transform = stack.pop(); }, beginPath() {},
     rect(...args) { if (nodes.get('admin-battle').dataset.phase === 'takeover') clips.push({ at: now, args }); }, clip() {},
     translate(x, y) { transform.x += x; transform.y += y; }, rotate(r) { transform.rotation += r; }, scale() {},
     set globalAlpha(value) { transform.alpha = value; },
-    drawImage(...args) { args.phase = nodes.get('admin-battle').dataset.phase; args.transform = { ...transform }; draws.push(args); }
+    drawImage(...args) { args.at = now; args.phase = nodes.get('admin-battle').dataset.phase; args.transform = { ...transform }; draws.push(args); }
   };
   class Element {
     constructor(id) {
@@ -51,6 +51,7 @@ function fixture({ width = 1440, height = 900, reduced = false, live = false, au
   document.body.style.overflow = 'auto';
   document.body.insertAdjacentHTML = (_where, html) => {
     for (const [, id] of html.matchAll(/\bid="([^"]+)"/g)) nodes.set(id, new Element(id));
+    for (const [, id, text] of html.matchAll(/<button[^>]*id="([^"]+)"[^>]*>([^<]*)/g)) nodes.get(id).textContent = text;
     for (const side of ['enemy', 'player']) nodes.get(`battle-${side}-health`).parentElement = new Element();
   };
   const window = {
@@ -89,28 +90,33 @@ function fixture({ width = 1440, height = 900, reduced = false, live = false, au
     for (let i = 0; i < 30; i++) { await flush(); if (nodes.get('admin-battle').dataset.phase === target) return; if (!await advance()) break; }
     assert.equal(nodes.get('admin-battle').dataset.phase, target);
   }
-  return { battle, nodes, window, document, phases, locks, draws, announcements, timers, frames, music, clips, phaseTimes, until, advance, async finish() { for (let i = 0; i < 30 && battle.active(); i++) await advance(); assert.equal(battle.active(), false); }, get result() { return { prepared, opened, committed, discarded }; }, dispatch(name) { (listeners[name] || []).forEach(fn => fn()); } };
+  return { battle, nodes, window, document, phases, locks, draws, announcements, timers, frames, music, clips, phaseTimes, beams, until, advance, render, tick(ms) { now += ms; render(); }, async finish() { for (let i = 0; i < 30 && battle.active(); i++) await advance(); assert.equal(battle.active(), false); }, get result() { return { prepared, opened, committed, discarded }; }, dispatch(name) { (listeners[name] || []).forEach(fn => fn()); } };
 }
 
 async function reachPassword(f) {
-  const started = f.battle.start(); await f.until('choose-attack'); await started;
+  const started = f.battle.start(); await f.until('choose-action'); await started;
+  assert.equal(f.nodes.get('battle-message').textContent, 'What will PIKACHU do?');
+  await f.nodes.get('battle-fight').emit('click'); await f.until('choose-attack');
+  f.render();
   const attack = f.nodes.get('battle-laser').emit('click'); await f.until('password'); await attack;
   assert.equal(f.nodes.get('battle-enemy-health').style.width, '42%');
   assert.equal(f.nodes.get('battle-player-health-text').textContent, '18 / 43');
   assert.equal(f.nodes.get('battle-password-form').hidden, false);
+  assert.match(f.nodes.get('battle-message').textContent, /magic word!/);
 }
 test('preview victory follows every phase and never opens approvals', async () => {
   const f = fixture(); await reachPassword(f);
-  assert.deepEqual(f.phases.slice(1, 8), ['bounce-one', 'bounce-two', 'throw', 'land', 'release', 'takeover', 'choose-attack']);
+  assert.deepEqual(f.phases.slice(1, 10), ['bounce-one', 'bounce-two', 'throw', 'land', 'release', 'takeover', 'encounter', 'send-out', 'choose-action']);
   assert.ok(f.draws.some(args => args[0].src.includes('mascot-sheet')));
   assert.ok(f.draws.some(args => args[0].src.includes('pikachu-back')));
   const release = f.draws.find(args => args.phase === 'release');
   assert.ok((release.transform.x + release[5] + release[7]) * 1440 / 384 < 400, 'released sprite stays entirely to the left of the book');
   const takeover = f.phaseTimes.find(p => p.name === 'takeover');
-  assert.equal(f.phaseTimes.find(p => p.name === 'choose-attack').at - takeover.at, 2550);
+  assert.equal(f.phaseTimes.find(p => p.name === 'encounter').at - takeover.at, 2550);
   assert.ok(f.clips.filter(c => c.at === takeover.at).length >= 40, 'takeover starts as a larger established patch');
   assert.equal(f.music.length, 1); assert.equal(f.music[0].loop, true); assert.equal(f.music[0].paused, false);
   const standing = f.draws.filter(d => d.phase === 'choose-attack');
+  f.tick(1);
   assert.ok(standing.length >= 2);
   assert.ok(standing.every(d => d[6] + d[8] === 0), 'opaque sprite bottoms stay on the foot anchor during idle');
   assert.ok(standing.filter(d => d[0].src.includes('pikachu-back')).every(d => d[1] === 5 && d[2] === 8), 'Pikachu keeps the standing pose');
@@ -120,7 +126,7 @@ test('preview victory follows every phase and never opens approvals', async () =
   await f.finish(); await submitted;
   assert.ok(f.phases.includes('faint-enemy')); assert.ok(!f.phases.includes('faint-player'));
   assert.deepEqual(f.phases.slice(-4), ['result', 'off', 'reveal', 'device-exit']);
-  assert.equal(f.result.opened, 0); assert.equal(f.result.committed, 0); assert.equal(f.result.prepared, 0);
+  assert.equal(f.result.opened, 0); assert.equal(f.result.committed, 0); assert.equal(f.result.prepared, 1);
   assert.match(f.announcements[0], /Preview complete/);
   assert.equal(f.document.body.style.overflow, 'auto'); assert.equal(f.nodes.get('main-content').inert, false);
   assert.equal(f.frames.size, 0); assert.equal(f.timers.size, 0);
@@ -135,6 +141,7 @@ test('wrong password tumbles Pikachu without fading and real victory commits acc
   assert.ok(loser.phases.includes('final-water')); assert.ok(loser.phases.includes('faint-player'));
   assert.equal(loser.nodes.get('battle-player-health-text').textContent, '0 / 43');
   assert.equal(loser.result.opened, 0); assert.equal(loser.result.committed, 0);
+  assert.equal(loser.result.prepared, 1, 'lost battles also return to the signature spread');
   const falling = loser.draws.filter(d => d[0].src.includes('pikachu-back') && d.phase === 'faint-player');
   assert.ok(falling.some(d => d.transform.rotation < -1.5), 'Pikachu falls onto its side');
   assert.ok(falling.every(d => d.transform.alpha === 1), 'the character never fades during defeat');
@@ -183,4 +190,54 @@ test('an active admin session reopens the desk without running another battle', 
   const f = fixture({ live: true, authenticated: true }); await f.battle.start();
   assert.equal(f.result.prepared, 1); assert.equal(f.result.opened, 1); assert.equal(f.battle.active(), false);
   assert.deepEqual(f.locks, []);
+});
+
+test('health panels clear the full standing sprites at desktop, short-window and mobile sizes', async () => {
+  const overlaps = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  for (const [width, height] of [[2048, 900], [2048, 1100], [1440, 900], [740, 390], [390, 844], [320, 568], [3440, 1440]]) {
+    const f = fixture({ width, height });
+    const started = f.battle.start(); await f.until('choose-action'); await started; f.render();
+    const before = JSON.stringify(f.battle.layoutForViewport(width, height));
+    const layout = f.battle.layoutForViewport(width, height);
+    const panels = ['battle-enemy-panel', 'battle-player-panel'].map(id => {
+      const r = layout.ui[id]; return { ...r, w: r.w + 4, h: r.h + 5 };
+    });
+    for (const draw of f.draws.filter(d => d.phase === 'choose-action')) {
+      const body = { x: draw.transform.x + draw[5], y: draw.transform.y + draw[6], w: draw[7], h: draw[8] };
+      assert.ok(body.x >= 0 && body.x + body.w <= layout.width, `sprite fits horizontally at ${width}×${height}`);
+      assert.ok(body.y >= 22 && body.y + body.h < layout.fieldH - 3, 'sprite clears controls and dialogue');
+      assert.ok(panels.every(panel => !overlaps(body, panel)), `health boxes clear ${draw[0].src} at ${width}×${height}`);
+    }
+    await f.nodes.get('battle-fight').emit('click'); f.render();
+    const fired = f.nodes.get('battle-laser').emit('click'); await f.until('laser'); f.tick(450);
+    for (const beam of f.beams) {
+      const draw = f.draws.find(d => d.at === beam.at && d.phase === beam.phase && d[0].src.includes('pikachu-back'));
+      assert.ok(draw, 'laser has a matching player pose');
+      assert.ok(beam.transform.x > draw.transform.x + draw[5] && beam.transform.x < draw.transform.x + draw[5] + draw[7], 'laser starts within player body width');
+      assert.ok(beam.transform.y > draw.transform.y + draw[6] && beam.transform.y < draw.transform.y + draw[6] + draw[8], 'laser starts within player body height');
+    }
+    assert.ok(f.beams.length > 0, 'attack drew a laser');
+    await f.until('password'); await fired; f.render();
+    assert.equal(JSON.stringify(f.battle.layoutForViewport(width, height)), before, 'password leaves the field and actors stationary');
+    for (const [id, rect] of Object.entries(layout.ui)) {
+      const global = ['battle-enemy-panel', 'battle-player-panel', 'battle-dialogue', 'battle-preview-label', 'battle-sound', 'battle-close'].includes(id);
+      const control = f.nodes.get(id);
+      assert.equal(parseFloat(control.style.left), rect.x * layout.scale, `${id} hit target matches painted position`);
+      assert.equal(parseFloat(control.style.top), (rect.y - (global ? 0 : layout.fieldH)) * layout.scale, `${id} hit target matches painted position`);
+    }
+    await f.nodes.get('battle-close').emit('click');
+  }
+});
+
+test('the battle menu supports bag, party and escape without granting approval access', async () => {
+  const f = fixture({ live: true });
+  const started = f.battle.start(); await f.until('choose-action'); await started;
+  await f.nodes.get('battle-bag').emit('click');
+  assert.match(f.nodes.get('battle-message').textContent, /empty/i);
+  assert.equal(f.nodes.get('battle-menu').hidden, false);
+  await f.nodes.get('battle-party').emit('click');
+  assert.match(f.nodes.get('battle-message').textContent, /PIKACHU/);
+  const escaped = f.nodes.get('battle-run').emit('click'); await f.finish(); await escaped;
+  assert.equal(f.result.prepared, 1); assert.equal(f.result.opened, 0); assert.equal(f.result.committed, 0);
+  assert.match(f.announcements[0], /signature pages/);
 });

@@ -80,7 +80,7 @@
     return `<div class="signature-paper" role="group" aria-label="Club signatures, ${side} page"><div class="signature-marks">${clubSignatures.filter((signature) => signature.page === side).map((signature) => {
       const width = bounded(signature.width, 38, 5, 85);
       const x = bounded(signature.x, 12, 0, 100 - width);
-      const y = bounded(signature.y, side === 'left' ? 40 : 12, 0, 94 - (signature.height || 10));
+      const y = bounded(signature.y, 12, 0, 94 - (signature.height || 10));
       const rotation = bounded(signature.rotation, 0, -20, 20);
       const selected = window.MAKERSPACE_SIGNATURES?.isEditing(signature.id);
       return `<figure class="signature-entry${selected ? ' is-selected' : ''}"${signature.id ? ` data-signature-id="${escape(signature.id)}"` : ''}${selected ? ' tabindex="0" aria-label="Move signature with arrow keys or drag"' : ''} style="left:${x}%;top:${y}%;width:${width}%;transform:rotate(${rotation}deg)">${picture(signature.image, signature.alt || `${signature.name}’s signature`, 'loading="eager" decoding="async" draggable="false"')}<figcaption class="sr-only">${escape(signature.name)}</figcaption></figure>`;
@@ -383,6 +383,7 @@
       interrupted = true;
       motions.forEach((motion) => { try { motion.finish(); } catch {} });
       $('page-turn').getAnimations({ subtree: true }).forEach((motion) => { try { motion.finish(); } catch {} });
+      $('cover-stage').getAnimations({ subtree: true }).forEach((motion) => { try { motion.finish(); } catch {} });
     };
     const play = async (parts, duration, easing = 'cubic-bezier(.25,.8,.25,1)') => {
       if (interrupted) return;
@@ -394,6 +395,7 @@
       await Promise.allSettled(group);
     };
     window.addEventListener('resize', finishOnResize);
+    const releaseSkip = offerAnimationSkip(finishOnResize, 'collections');
     try {
       // Warm the photographs while the cover opens; the quick sheets never wait on a network request.
       equipment.forEach((tool) => { const image = new Image(); image.src = tool.image; });
@@ -421,7 +423,7 @@
       paintSpread();
       state.busy = true;
       updateControls();
-      await picturesReady;
+      if (!interrupted) await picturesReady;
       if (reducedMotion.matches || interrupted) return;
 
       const detail = $('detail-page');
@@ -501,6 +503,7 @@
       history.pushState(null, '', '#collections/the-club');
       document.title = 'The club — SBHS Makerspace';
       $('detail-page').querySelector('#club-target')?.focus({ preventScroll: true });
+      await releaseSkip();
     }
   }
 
@@ -2413,7 +2416,14 @@
     closeMenu: () => setVolumeMenu(false),
     lock: locked => { state.navigating = locked; updateControls(); },
     bookRect: () => $(state.open ? 'book-spread' : 'open-book').getBoundingClientRect(),
-    prepareApprovals: async () => { history.replaceState(null, '', '#collections/club-signatures'); await openBook(SIGNATURES_PAGE, false, { forNavigation: true }); },
+    prepareApprovals: async () => {
+      history.replaceState(null, '', '#collections/club-signatures');
+      await openBook(SIGNATURES_PAGE, false, { forNavigation: true });
+      const top = $('reader').getBoundingClientRect().top + window.scrollY - 24;
+      window.scrollTo({ top: Math.max(0, top), behavior: 'instant' });
+      document.title = 'Club signatures — SBHS Makerspace';
+    },
+    focusSignatures: () => $('book-spread').focus({ preventScroll: true }),
     announce: message => { $('announcement').textContent = message; }
   });
 })();

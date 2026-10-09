@@ -31,7 +31,8 @@ function ui(connected) {
     },
     getElementById: id => nodes.get(id) || null,
     addEventListener(type, fn) { (listeners[type] ||= []).push(fn); },
-    querySelector: selector => figures.get(selector) || null
+    querySelector: selector => figures.get(selector) || null,
+    querySelectorAll: () => []
   };
   const window = {
     MAKERSPACE: { clubSignatures: [], signatureSettings: { creatorUrl: 'https://www.textstudio.com/design/studio', email: '668442@my.sbunified.org', apiUrl: connected ? 'https://signatures.test' : '' } },
@@ -76,9 +77,10 @@ function ui(connected) {
     for (const fn of listeners.change || []) fn({ target }); await flush();
   } };
 }
-test('unconnected spread uses email instructions and image preparation without advertising live approval', async () => {
+test('compact signature help explains creation and the honest unconnected upload fallback', async () => {
   const f = ui(false); await flush();
-  const note = f.module.noteHTML(); assert.match(note, /668442@my.sbunified.org/); assert.match(note, /Prepare image/);
+  const note = f.module.noteHTML(); assert.match(note, /668442@my.sbunified.org/); assert.match(note, /data-signature-help/); assert.match(note, /Upload/); assert.match(note, /signature-help-popover/);
+  assert.doesNotMatch(note, /<h2>/); assert.match(note, /Shared uploads are not connected yet/);
   assert.doesNotMatch(note, /Admin sign in|will review/); assert.equal(f.calls.length, 0);
   await f.click('[data-signature-upload]');
   assert.equal(f.nodes.get('signature-upload-dialog').open, true);

@@ -49,14 +49,14 @@ async function authenticate(request, env) {
 function placement(row, page, x, y, width) {
   if (!['left', 'right'].includes(page) || ![x, y, width].every(Number.isFinite)) fail(400, 'Invalid signature position.');
   const height = width * row.image_height / row.image_width * .827;
-  if (width < 5 || width > 70 || height > 70 || x < 4 || x + width > 96 || y < (page === 'left' ? 38 : 4) || y + height > 94) fail(400, 'Keep the signature inside the signing area.');
+  if (width < 5 || width > 70 || height > 70 || x < 4 || x + width > 96 || y < (page === 'left' ? 12 : 4) || y + height > 94) fail(400, 'Keep the signature inside the signing area.');
   return { page, x, y, width, height };
 }
 function slots(row) {
   const positions = [];
-  for (const page of ['left', 'right']) for (let line = 0; line < (page === 'left' ? 4 : 6); line++) for (const x of [8, 54]) {
+  for (const page of ['left', 'right']) for (let line = 0; line < 6; line++) for (const x of [8, 54]) {
     const width = Math.min(38, 11 / (.827 * row.image_height / row.image_width));
-    if (width >= 5) positions.push(placement(row, page, x, (page === 'left' ? 40 : 12) + line * 14, width));
+    if (width >= 5) positions.push(placement(row, page, x, 12 + line * 14, width));
   }
   return positions;
 }

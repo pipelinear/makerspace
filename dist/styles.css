@@ -367,14 +367,17 @@ body[data-view="volume-02"] .wordmark{font-family:'Helvetica Neue',Arial,sans-se
 .poster-page .signature-page-number{left:8%}
 .detail-page .signature-page-number{right:8%}
 @media(max-width:900px){.book-stage .book-spread>#detail-page.is-signature-page{aspect-ratio:.827;min-height:0}}
-.signature-note{position:absolute;top:6%;left:8%;right:8%;max-width:32rem;color:var(--ink);font-family:var(--serif);text-align:left;z-index:2;user-select:text}
-.signature-note h2{font-size:clamp(1rem,2.1vw,1.8rem);font-weight:400;margin:0 0 .5em}
-.signature-note p{font-size:clamp(.65rem,1.05vw,.95rem);line-height:1.45;margin:.5em 0;max-width:34em}
-.signature-note a{text-decoration:underline;text-underline-offset:.2em;overflow-wrap:anywhere}
-.signature-note em{font-style:italic}
-.signature-note-actions{display:flex;gap:1.4em;align-items:center;margin-top:.8em}
-.signature-note-actions button,.signature-editor button{padding:.25em 0;border:0;background:none;color:inherit;font:inherit;font-size:clamp(.65rem,.85vw,.8rem);cursor:pointer;text-decoration:underline;text-underline-offset:.25em}
-.signature-note-actions button span{font-size:1.3em;margin-right:.2em}
+.signature-note{position:absolute;top:5%;left:7%;display:flex;align-items:center;gap:1rem;color:var(--ink);font-family:var(--serif);text-align:left;z-index:4;user-select:text}
+.signature-help{position:relative}
+.signature-help-button{display:grid;place-items:center;width:22px;height:22px;border:1px solid #172a2345;border-radius:50%;background:transparent;color:inherit;font:14px var(--serif);cursor:pointer;padding:0}
+.signature-help-button:focus-visible,.signature-upload-button:focus-visible{outline:1px dashed var(--ink);outline-offset:4px}
+.signature-help-popover{position:absolute;left:0;top:100%;width:min(18rem,65vw);padding:1rem;background:var(--paper);box-shadow:0 5px 25px #172a2326;visibility:hidden;opacity:0;pointer-events:none;transform:translateY(3px);transition:opacity .16s ease,transform .16s ease;z-index:8}
+.signature-help:not(.is-dismissed):hover .signature-help-popover,.signature-help.is-open .signature-help-popover{visibility:visible;opacity:1;pointer-events:auto;transform:translateY(0)}
+.signature-help-popover p{font-size:.76rem;line-height:1.45;margin:0 0 .7rem}
+.signature-help-popover p:last-child{margin-bottom:0}
+.signature-help-popover a{text-decoration:underline;text-underline-offset:.2em;overflow-wrap:anywhere}
+.signature-upload-button,.signature-editor button{padding:.25em 0;border:0;background:none;color:inherit;font:inherit;font-size:.72rem;cursor:pointer;text-underline-offset:.25em}
+.signature-upload-button span{font-size:1.15em;margin-right:.15em}
 .signature-dialog{color:var(--ink);background:var(--paper);border:0;border-radius:0;width:min(90vw,31rem);max-height:85dvh;padding:2.2rem;box-shadow:0 12px 80px #172a2338;font-family:var(--serif);overflow-y:auto;scrollbar-width:none}
 .signature-dialog::-webkit-scrollbar{display:none}
 .signature-dialog::backdrop{background:#172a2370;backdrop-filter:blur(4px)}
@@ -407,8 +410,8 @@ body[data-view="volume-02"] .wordmark{font-family:'Helvetica Neue',Arial,sans-se
 .signature-editor input{width:6rem;accent-color:var(--ink)}
 .signature-editor select{border:0;background:var(--paper);color:inherit;font:inherit}
 .signature-editor p{width:100%;margin:0;font-size:.65rem}
-@media(max-width:900px){.signature-note h2{font-size:1.4rem}.signature-note p{font-size:.8rem}.signature-note-actions button{font-size:.7rem}.signature-dialog{padding:1.7rem}}
-@media(max-width:520px){.signature-note h2{font-size:1.15rem}.signature-note p{font-size:.67rem;line-height:1.35}.signature-note-actions{margin-top:.45em}.signature-note-actions button{font-size:.65rem}}
+@media(max-width:900px){.signature-dialog{padding:1.7rem}}
+@media(max-width:520px){.signature-note{gap:.75rem}.signature-upload-button{font-size:.65rem}.signature-help-popover{width:min(16rem,60vw);padding:.8rem}.signature-help-popover p{font-size:.68rem}}
 
 /* The signing desk hides behind a tiny cartridge-era battle. */
 .volume-options{display:flex;flex-direction:column;align-items:flex-end;gap:12px}
@@ -416,18 +419,18 @@ body[data-view="volume-02"] .wordmark{font-family:'Helvetica Neue',Arial,sans-se
 .admin-ball svg{width:32px;height:32px;image-rendering:pixelated;filter:drop-shadow(2px 3px 0 #172a2322);transition:transform .18s ease}
 .admin-ball:hover svg,.admin-ball:focus-visible svg{transform:translateY(-3px) rotate(-12deg)}
 .admin-ball:focus-visible{outline:1px dashed var(--ink);outline-offset:2px}
-.admin-battle{position:fixed;inset:0;width:100vw;height:100dvh;max-width:none;max-height:none;margin:0;padding:0;overflow:hidden;border:0;background:transparent;color:#243b43;--battle-pixel:3px;--battle-dialogue-height:calc(var(--battle-pixel)*74);font-family:monospace;isolation:isolate}
+.admin-battle{position:fixed;inset:0;width:100vw;height:100dvh;max-width:none;max-height:none;margin:0;padding:0;overflow:hidden;border:0;background:transparent;color:#243b43;--battle-pixel:3px;--battle-dialogue-height:calc(var(--battle-pixel)*64);font-family:monospace;isolation:isolate}
 .admin-battle::backdrop{background:transparent}
-.admin-battle[data-phase=password]{--battle-dialogue-height:calc(var(--battle-pixel)*101)}
+
 .admin-battle [hidden]{display:none!important}
 .battle-loading{position:absolute;opacity:0;pointer-events:none}
 .battle-display{position:absolute;inset:0;background:transparent;transform-origin:center center}
 #battle-canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;pointer-events:none}
 /* Native controls provide semantics and input; every visible UI pixel is painted by the battle canvas. */
-.battle-tools{position:absolute;top:calc(var(--battle-pixel)*3);left:calc(var(--battle-pixel)*8);right:calc(var(--battle-pixel)*8);z-index:5;display:flex;gap:calc(var(--battle-pixel)*4);justify-content:flex-end;align-items:center}
-.battle-tools>span{opacity:0;margin-right:auto;width:calc(var(--battle-pixel)*58);height:calc(var(--battle-pixel)*16)}
-.battle-tools button{opacity:0;border:0;padding:0;cursor:pointer;width:calc(var(--battle-pixel)*65);height:calc(var(--battle-pixel)*18)}
-.battle-tools #battle-close{width:calc(var(--battle-pixel)*18)}
+/* Hit targets are positioned from the canvas layout; the toolbar does not intercept the rest of the scene. */
+.battle-tools{position:absolute;inset:0;z-index:5;pointer-events:none}
+.battle-tools>span{opacity:0;pointer-events:none}
+.battle-tools button{position:absolute;opacity:0;border:0;padding:0;cursor:pointer;pointer-events:auto}
 .battle-covered{background:#d5e8e3}
 .battle-health-panel{position:absolute;box-sizing:border-box;width:46%;height:calc(var(--battle-pixel)*43);opacity:0;pointer-events:none}
 .enemy-panel{top:calc(var(--battle-pixel)*31);left:5%}
@@ -437,9 +440,9 @@ body[data-view="volume-02"] .wordmark{font-family:'Helvetica Neue',Arial,sans-se
 .battle-hp-line i{display:block;height:100%;width:100%}
 .battle-dialogue{position:absolute;left:0;right:0;bottom:0;height:var(--battle-dialogue-height);box-sizing:border-box;padding:calc(var(--battle-pixel)*13) calc(var(--battle-pixel)*17);display:flex;flex-direction:column;justify-content:flex-end;gap:calc(var(--battle-pixel)*3);opacity:0}
 .battle-dialogue>p{position:absolute;top:calc(var(--battle-pixel)*12);left:calc(var(--battle-pixel)*17);right:calc(var(--battle-pixel)*17);margin:0;pointer-events:none}
-.battle-dialogue button{align-self:flex-end;width:calc(var(--battle-pixel)*100);height:calc(var(--battle-pixel)*20);padding:0;border:0;cursor:pointer}
+.battle-dialogue button{position:absolute;width:calc(var(--battle-pixel)*100);height:calc(var(--battle-pixel)*20);padding:0;border:0;cursor:pointer}
 .battle-dialogue button:disabled{cursor:wait}
-.battle-password-row{display:flex;gap:calc(var(--battle-pixel)*5);align-items:center}
+.battle-password-row{display:contents}
 #battle-password-form label{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
 #battle-password{flex:1;min-width:0;height:calc(var(--battle-pixel)*21);box-sizing:border-box;padding:0;border:0}
 #battle-password-submit{width:calc(var(--battle-pixel)*68)}
@@ -476,5 +479,5 @@ body[data-view="volume-02"] .wordmark{font-family:'Helvetica Neue',Arial,sans-se
 .battle-revealing{background:transparent;transition:background .75s .12s}
 .battle-revealing .battle-handheld{opacity:1;transform:translate(-50%,-50%) scale(1)}
 .battle-device-leaving .battle-handheld{transform:translate(-42%,135dvh) rotate(13deg) scale(.75);opacity:0;transition:transform .65s cubic-bezier(.5,0,.85,.4),opacity .65s .12s}
-@media(max-width:600px){.battle-health-panel{width:53%}.enemy-panel{left:4%}.player-panel{right:4%}.admin-ball svg{width:29px;height:29px}}
+@media(max-width:600px){.admin-ball svg{width:29px;height:29px}}
 @media(prefers-reduced-motion:reduce){.admin-ball svg{transition:none}.battle-hp-line i{transition:none}.battle-is-off .battle-display{animation:none;opacity:0}.battle-is-off .battle-off-line{display:none}.battle-handheld{transition:opacity .15s;transform:translate(-50%,-50%) scale(1)}.battle-device-leaving .battle-handheld{transform:translate(-50%,-50%) scale(1);transition:opacity .15s}}

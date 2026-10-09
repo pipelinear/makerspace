@@ -39,12 +39,12 @@
   }
   function syncEditing() { document.body.classList.toggle('signature-editing', Boolean(editing && token)); }
   function noteHTML() {
-    return `<aside class="signature-note"><h2>Want to sign it?</h2><p><a href="${escape(settings.creatorUrl)}" target="_blank" rel="noopener noreferrer">Make your signature ↗</a>. Click <em>Add new text</em>, type your name, then export a <em>Transparent PNG</em>.</p><p>${base ? 'Come back and upload it below. An admin will review it before it appears in the book.' : `Email your image and name to <a href="${escape(emailURL(''))}">${escape(settings.email)}</a> to have it added.`}</p><div class="signature-note-actions"><button type="button" data-signature-upload aria-label="${base ? 'Upload your signature' : 'Prepare your signature for email'}"><span aria-hidden="true">↥</span> ${base ? 'Upload' : 'Prepare image'}</button></div></aside>`;
+    return `<aside class="signature-note" aria-label="Signature page controls"><div class="signature-help"><button type="button" class="signature-help-button" data-signature-help aria-label="How to sign the book" aria-expanded="false" aria-controls="signature-help-text">?</button><div id="signature-help-text" class="signature-help-popover" role="note"><p>This is the signature page.</p><p><a href="${escape(settings.creatorUrl)}" target="_blank" rel="noopener noreferrer">Make your signature in TextStudio ↗</a>. Click <em>Add new text</em>, type your name, and export a <em>Transparent PNG</em>. Then come back and click Upload.</p><p>${base ? 'Your upload waits for an admin to approve it before it appears in the book.' : `Shared uploads are not connected yet. For now, prepare your PNG here and email it with your name to <a href="${escape(emailURL(''))}">${escape(settings.email)}</a>.`}</p></div></div><button type="button" class="signature-upload-button" data-signature-upload aria-label="Upload your signature"><span aria-hidden="true">↥</span> Upload</button></aside>`;
   }
   function toolbarHTML() {
     const row = current();
     if (!row || !token) return '';
-    const max = Math.min(70, (row.page === 'left' ? 56 : 70) / (.827 * row.imageHeight / row.imageWidth));
+    const max = Math.min(70, 70 / (.827 * row.imageHeight / row.imageWidth));
     return `<div class="signature-editor" role="group" aria-label="Arrange ${escape(row.name)}"><span>${escape(row.name)} · drag to move</span><label>Size <input data-signature-size type="range" min="5" max="${max}" step=".5" value="${row.width}"></label><label>Page <select data-signature-page><option value="left"${row.page === 'left' ? ' selected' : ''}>Left</option><option value="right"${row.page === 'right' ? ' selected' : ''}>Right</option></select></label><button data-signature-fit>Auto fit</button><button data-signature-done>Done</button><p id="signature-save-status" role="status">${saving ? 'Saving…' : 'Changes save to the book.'}</p></div>`;
   }
   async function preparePNG(file) {
@@ -170,10 +170,10 @@
     finally { saving = false; button.disabled = false; }
   }
   function clampPosition(row) {
-    row.width = Math.max(5, Math.min(row.width, 70, (row.page === 'left' ? 56 : 70) / (.827 * row.imageHeight / row.imageWidth)));
+    row.width = Math.max(5, Math.min(row.width, 70, 70 / (.827 * row.imageHeight / row.imageWidth)));
     row.height = row.width * row.imageHeight / row.imageWidth * .827;
     row.x = Math.max(4, Math.min(row.x, 96 - row.width));
-    row.y = Math.max(row.page === 'left' ? 38 : 4, Math.min(row.y, 94 - row.height));
+    row.y = Math.max(row.page === 'left' ? 12 : 4, Math.min(row.y, 94 - row.height));
   }
   function paintPosition(row) {
     const entry = document.querySelector(`[data-signature-id="${row.id}"]`);
@@ -224,11 +224,31 @@
     $('signature-admin-dialog').addEventListener('close', () => { adminGeneration++; releaseAdminImages(); });
     document.addEventListener('click', event => {
       const target = event.target;
+      const help = target.closest('[data-signature-help]');
+      if (help) {
+        const group = help.closest('.signature-help');
+        const open = !group.classList.contains('is-open');
+        group.classList.toggle('is-open', open); group.classList.toggle('is-dismissed', !open);
+        help.setAttribute('aria-expanded', String(open));
+      }
+      if (!target.closest('.signature-help')) document.querySelectorAll('.signature-help.is-open').forEach(group => {
+        group.classList.remove('is-open'); group.querySelector('[data-signature-help]').setAttribute('aria-expanded', 'false');
+      });
       if (target.closest('[data-signature-close]')) target.closest('dialog').close();
       if (target.closest('[data-signature-upload]')) { clearPreview(); $('signature-upload-form').reset(); message('signature-upload-status', ''); $('signature-upload-dialog').showModal(); }
       const review = target.closest('[data-review-action]'); if (review) reviewAction(review);
       if (target.closest('[data-signature-fit]')) savePlacement(true);
       if (target.closest('[data-signature-done]') && !saving) { editing = ''; syncEditing(); repaint(); showAdmin(); }
+    });
+    document.addEventListener('mouseover', event => {
+      event.target.closest('[data-signature-help]')?.closest('.signature-help')?.classList.remove('is-dismissed');
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key !== 'Escape' || !event.target.closest('.signature-help')) return;
+      const group = event.target.closest('.signature-help');
+      group.classList.remove('is-open'); group.classList.add('is-dismissed');
+      group.querySelector('[data-signature-help]').setAttribute('aria-expanded', 'false');
+      event.preventDefault(); event.stopPropagation();
     });
     document.addEventListener('input', event => {
       if (!event.target.matches('[data-signature-size]') || saving) return;

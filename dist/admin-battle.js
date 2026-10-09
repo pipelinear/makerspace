@@ -85,16 +85,51 @@
     bar.parentElement.setAttribute('aria-valuenow', String(value));
     if (which === 'player') $('battle-player-health-text').textContent = `${value} / 43`;
   }
+  function layoutForViewport(width, height) {
+    // Cap pixel size by height too: wide, short windows must not inflate the HUD over the field.
+    const scale = Math.min(width / (width < 700 ? 240 : 384), height / 240);
+    const W = Math.round(width / scale), H = Math.round(height / scale);
+    const dialogueHeight = W < 320 ? 78 : 64;
+    const fieldH = H - dialogueHeight, panelW = Math.min(136, Math.floor(W * .48));
+    const playerPanel = { x: W - panelW - 12, y: fieldH - 56, w: panelW, h: 46 };
+    const enemyPanel = { x: 12, y: 28, w: panelW, h: 36 };
+    const player = { x: W * .23, y: fieldH - 8, size: Math.min(104, fieldH * .45, fieldH - 83) };
+    const enemy = { x: W * .75, y: Math.min(fieldH * .58, playerPanel.y - 12) };
+    enemy.size = Math.min(100, fieldH * .38, enemy.y - 27);
+    const dialogue = { x: 0, y: fieldH, w: W, h: dialogueHeight };
+    const ui = {
+      'battle-enemy-panel': enemyPanel, 'battle-player-panel': playerPanel,
+      'battle-dialogue': dialogue,
+      'battle-message': { x: 14, y: fieldH + 10, w: W - 28, h: 32 },
+      'battle-preview-label': { x: 8, y: 4, w: 58, h: 16 },
+      'battle-sound': { x: W - 95, y: 4, w: 65, h: 18 },
+      'battle-close': { x: W - 26, y: 4, w: 18, h: 18 },
+      'battle-laser': { x: W - 114, y: H - 31, w: 100, h: 20 },
+      'battle-password': { x: 14, y: H - 32, w: W - 101, h: 21 },
+      'battle-password-submit': { x: W - 82, y: H - 32, w: 68, h: 21 },
+      'battle-password-error': { x: 14, y: H - 14, w: W - 28, h: 12 }
+    };
+    for (const [index, id] of ['battle-fight', 'battle-bag', 'battle-party', 'battle-run'].entries()) {
+      ui[id] = { x: W - 128 + index % 2 * 59, y: fieldH + 10 + Math.floor(index / 2) * 23, w: 56, h: 20 };
+    }
+    return { width: W, height: H, scale, fieldH, player, enemy, ui };
+  }
   function resize() {
     if (!run) return;
     const canvas = $('battle-canvas'), width = $('admin-battle').clientWidth || window.innerWidth, height = $('admin-battle').clientHeight || window.innerHeight;
-    canvas.width = width < 700 ? 240 : 384; canvas.height = Math.max(160, Math.round(height / width * canvas.width));
-    $('admin-battle').style.setProperty('--battle-pixel', `${width / canvas.width}px`);
-    run.width = width; run.height = height; run.scale = width / canvas.width;
+    run.layout = layoutForViewport(width, height);
+    canvas.width = run.layout.width; canvas.height = run.layout.height;
+    $('admin-battle').style.setProperty('--battle-pixel', `${run.layout.scale}px`);
+    run.width = width; run.height = height; run.scale = run.layout.scale;
     run.context = canvas.getContext('2d'); run.context.imageSmoothingEnabled = false;
     // Reserve the same dialogue space during takeover while its native controls are still hidden.
     // This keeps the grass and foot anchors stationary when the HUD appears.
-    run.dialogHeight = run.scale * (run.phase === 'password' ? 101 : 74);
+    run.dialogHeight = run.scale * run.layout.ui['battle-dialogue'].h;
+    // Paint and hit targets use exactly the same rectangles, with no phase-dependent CSS geometry.
+    for (const [id, rect] of Object.entries(run.layout.ui)) {
+      const local = !['battle-enemy-panel', 'battle-player-panel', 'battle-dialogue', 'battle-preview-label', 'battle-sound', 'battle-close'].includes(id);
+      Object.assign($(id).style, { position: 'absolute', left: `${rect.x * run.scale}px`, top: `${(rect.y - (local ? run.layout.fieldH : 0)) * run.scale}px`, right: 'auto', bottom: 'auto', width: `${rect.w * run.scale}px`, height: `${rect.h * run.scale}px` });
+    }
     if (!['off', 'reveal', 'device-exit'].includes(run.phase)) {
       run.stage.style.transform = width < 700 ? 'translateX(6vw) scale(.72)' : run.stageTransform;
       run.stage.style.transformOrigin = width < 700 ? 'right center' : run.stageOrigin;
@@ -168,15 +203,17 @@
     context.restore();
   }
   function background(context, width, height, battleH) {
+    const { player, enemy } = run.layout;
     context.fillStyle = '#d5e8e3'; context.fillRect(0, 0, width, height);
     for (let y = 0; y < battleH; y += 4) { context.fillStyle = y % 8 ? '#eef0d52c' : '#a3cec325'; context.fillRect(0, y, width, 2); }
     context.fillStyle = '#f7f3d650';
     for (let i = 0; i < 6; i++) { const x = (i * 113 + 22) % width, y = battleH * .16 + i % 3 * 12; context.fillRect(x, y, 55, 5); context.fillRect(x + 12, y - 5, 30, 5); }
-    ellipse(context, width * .75, battleH * .55, width * .25, 22, '#d5c487');
-    ellipse(context, width * .75, battleH * .54, width * .225, 17, '#b7d889');
-    ellipse(context, width * .75, battleH * .54, width * .16, 10, '#a6cf7b');
-    ellipse(context, width * .24, battleH * .92, width * .34, 30, '#d5c487');
-    ellipse(context, width * .24, battleH * .91, width * .3, 24, '#b7d889');
+    const turf = Math.min(width * .25, enemy.size + 18);
+    ellipse(context, enemy.x, enemy.y + 1, turf, 18, '#d5c487');
+    ellipse(context, enemy.x, enemy.y, turf * .9, 14, '#b7d889');
+    ellipse(context, enemy.x, enemy.y, turf * .65, 8, '#a6cf7b');
+    ellipse(context, player.x, player.y + 1, Math.min(width * .34, player.size * 1.35 + 20), 26, '#d5c487');
+    ellipse(context, player.x, player.y, Math.min(width * .3, player.size * 1.2 + 18), 22, '#b7d889');
     context.fillStyle = '#96bb7055';
     for (let i = 0; i < 12; i++) { context.fillRect(width * .63 + i % 5 * 25, battleH * .47 + i % 3 * 4, 9, 2); }
   }
@@ -228,15 +265,15 @@
   }
   function drawBattle(context, W, H, time, p) {
     const active = run;
-    const battleH = Math.max(96, H - active.dialogHeight / active.scale);
-    const player = { x: W * .25, y: battleH * .91, size: Math.min(active.width < 700 ? 104 : 96, battleH * .45, Math.max(30, battleH * .91 - 80)) };
+    const battleH = active.layout.fieldH;
+    const player = { ...active.layout.player };
     if (active.phase === 'takeover') {
       const progress = smooth(p);
       player.x = lerp((active.landing.x - 8) / active.scale, player.x, progress);
       player.y = lerp((active.landing.y + 9) / active.scale, player.y, progress);
       player.size = lerp(96 / active.scale, player.size, progress);
     }
-    const enemy = { x: W * .75, y: battleH * .54, size: Math.min(active.width < 700 ? 116 : 108, battleH * .38, Math.max(24, battleH * .54 - 26)) };
+    const enemy = active.layout.enemy;
     background(context, W, H, battleH);
     shadow(context, player.x, player.y, player.size * .32); shadow(context, enemy.x, enemy.y, enemy.size * .28);
     const breathe = motion.matches ? 1 : 1 + Math.sin(time * Math.PI / 2.6) * .008;
@@ -262,18 +299,21 @@
     if (['laser', 'final-laser'].includes(active.phase)) {
       const reach = clamp(p / .4, 0, 1), fade = p > .7 ? (1 - p) / .3 : 1;
       context.save(); context.globalAlpha = fade;
-      const ax = player.x + 30, ay = player.y - player.size * .48, bx = enemy.x - 28, by = enemy.y - enemy.size * .48;
+      const playerWidth = Math.round(player.size * 51 / 49);
+      const ax = Math.round(player.x + px) + playerWidth * .28, ay = Math.round(player.y + py) - Math.round(player.size * breathe) * .46;
+      const bx = enemy.x - enemy.size * .18, by = enemy.y - enemy.size * .46;
       const dx = bx - ax, dy = by - ay;
       context.translate(ax, ay); context.rotate(Math.atan2(dy, dx));
-      context.fillStyle = '#d9573a'; context.fillRect(0, -6, Math.hypot(dx, dy) * reach, 12);
-      context.fillStyle = '#ffd261'; context.fillRect(0, -3, Math.hypot(dx, dy) * reach, 6);
+      const thickness = Math.max(3, Math.round(player.size * .09));
+      context.fillStyle = '#d9573a'; context.fillRect(0, -thickness / 2, Math.hypot(dx, dy) * reach, thickness);
+      context.fillStyle = '#ffd261'; context.fillRect(0, -Math.max(1, Math.floor(thickness / 4)), Math.hypot(dx, dy) * reach, Math.max(2, Math.floor(thickness / 2)));
       context.fillStyle = '#fff6cb'; context.fillRect(0, -1, Math.hypot(dx, dy) * reach, 2); context.restore();
       if (p > .35) { context.fillStyle = '#ffdc66'; for (let i = 0; i < 12; i++) { const a = i * 2.4; const r = ((p * 70 + i * 4) % 44); context.fillRect(bx + Math.cos(a) * r, by + Math.sin(a) * r, 4, 4); } }
     }
     if (['water', 'final-water'].includes(active.phase)) {
       for (let i = 0; i < 22; i++) {
         const q = clamp(p * 1.6 - i * .025, 0, 1); if (q <= 0 || q >= 1) continue;
-        const x = lerp(enemy.x - 32, player.x + 22, q), y = lerp(enemy.y - 55, player.y - 45, q) - Math.sin(q * Math.PI) * 12 + Math.sin(i * 2) * 8;
+        const x = lerp(enemy.x - enemy.size * .34, player.x + px + player.size * .28, q), y = lerp(enemy.y - enemy.size * .47, player.y - player.size * .46, q) - Math.sin(q * Math.PI) * 12 + Math.sin(i * 2) * 8;
         context.fillStyle = i % 3 ? '#448db9' : '#a0e2ef'; context.fillRect(Math.round(x), Math.round(y), 7 + i % 3 * 2, 5);
       }
     }
@@ -312,10 +352,7 @@
   }
   function drawInterface(context, W, H) {
     const active = run;
-    const rect = id => {
-      const r = $(id).getBoundingClientRect(), scale = active.scale;
-      return { x: Math.round(r.left / scale), y: Math.round(r.top / scale), w: Math.round(r.width / scale), h: Math.round(r.height / scale) };
-    };
+    const rect = id => active.layout.ui[id];
     const focused = id => document.activeElement === $(id) || active.hover === id;
     if (active.phase === 'loading') pixelText(context, 'Loading the cartridge…', Math.max(12, W / 2 - 67), H * .82);
     // DOM controls retain keyboard, input and screen-reader behavior; this canvas paints their pixel UI.
@@ -331,11 +368,11 @@
     if ($('battle-huds').hidden) return;
     for (const side of ['enemy', 'player']) {
       const r = rect(`battle-${side}-panel`), player = side === 'player';
-      context.fillStyle = '#46564c'; context.fillRect(r.x + 8, r.y + 8, r.w - 4, r.h);
+      context.fillStyle = '#46564c'; context.fillRect(r.x + 4, r.y + 5, r.w - 2, r.h);
       pixelBox(context, r.x, r.y, r.w, r.h, '#faf9df');
       pixelText(context, player ? 'PIKACHU' : 'THE DON', r.x + 8, r.y + 4);
       pixelText(context, 'Lv18', r.x + r.w - 35, r.y + 4);
-      const bx = r.x + 39, by = r.y + 25, bw = r.w - 48;
+      const bx = r.x + 30, by = r.y + 22, bw = r.w - 38;
       pixelText(context, 'HP', r.x + 10, by - 4, '#c69836', '#725b2c');
       pixelBox(context, bx, by, bw, 9, '#596a65', '#989e85', 2);
       const maximum = player ? 43 : 100;
@@ -346,8 +383,8 @@
       context.fillStyle = hp / maximum < .3 ? '#e6b642' : '#5ac68c'; context.fillRect(bx + 3, by + 3, length, 4);
       context.fillStyle = hp / maximum < .3 ? '#ffe28e' : '#bbefd2'; context.fillRect(bx + 3, by + 2, length, 2);
       if (player) {
-        pixelText(context, `${active.playerHP} / 43`, r.x + r.w - 58, r.y + 36);
-        context.fillStyle = '#cab33f'; context.fillRect(r.x + 8, r.y + r.h - 5, r.w - 16, 2);
+        pixelText(context, `${active.playerHP} / 43`, r.x + r.w - 58, r.y + 30);
+        context.fillStyle = '#cab33f'; context.fillRect(r.x + 8, r.y + r.h - 3, r.w - 16, 1);
       }
     }
     const r = rect('battle-dialogue');
@@ -356,18 +393,20 @@
     pixelBox(context, 6, r.y + 5, W - 12, H - r.y - 10, '#f3f5e2', '#f3f5e2', 2);
     pixelBox(context, 9, r.y + 8, W - 18, H - r.y - 16, '#294b60', '#8fa3a8', 2);
     const message = $('battle-message').textContent;
-    pixelText(context, message, 17, r.y + 12, '#f8f8ee', '#74848d', W - 34);
+    const menuVisible = !$('battle-menu').hidden;
+    pixelText(context, message, 14, r.y + 10, '#f8f8ee', '#74848d', menuVisible ? W - 150 : W - 28);
     const button = id => {
       if ($(id).hidden) return;
       const b = rect(id);
       pixelBox(context, b.x, b.y, b.w, b.h, focused(id) ? '#445e70' : '#294b60', '#d9e2cf', 2);
-      pixelText(context, id === 'battle-laser' ? 'LASER CUTTER ▶' : 'FINISH ▶', b.x + 5, b.y + 2, '#f8f8ee', '#74848d');
+      pixelText(context, id === 'battle-laser' ? 'LASER CUTTER ▶' : id === 'battle-password-submit' ? 'FINISH ▶' : $(id).textContent, b.x + 5, b.y + 2, '#f8f8ee', '#74848d');
     };
+    if (menuVisible) for (const id of ['battle-fight', 'battle-bag', 'battle-party', 'battle-run']) button(id);
     button('battle-laser');
     if (!$('battle-password-form').hidden) {
       const input = rect('battle-password');
       pixelBox(context, input.x, input.y, input.w, input.h, '#1e3b4b', focused('battle-password') ? '#efce8e' : '#94b8bd', 2);
-      pixelText(context, $('battle-password').value ? '*'.repeat(Math.min(24, $('battle-password').value.length)) : 'SITE PASSWORD', input.x + 5, input.y + 2, '#f8f8ee', '#74848d');
+      pixelText(context, $('battle-password').value ? '*'.repeat(Math.min(24, $('battle-password').value.length)) : 'MAGIC WORD', input.x + 5, input.y + 2, '#f8f8ee', '#74848d');
       button('battle-password-submit');
       if ($('battle-password-error').textContent) pixelText(context, $('battle-password-error').textContent, 17, input.y + input.h + 2, '#f1cd86', '#74848d', W - 34);
     }
@@ -394,13 +433,13 @@
   }
   async function finish(won, mode) {
     const active = run;
-    tell(won ? 'THE DON fainted! Access granted.' : 'PIKACHU fainted! Try another battle.');
-    active.sound.play(won ? 'win' : 'lose');
+    tell(mode === 'escaped' ? 'Got away safely!' : won ? 'THE DON fainted! Access granted.' : 'PIKACHU fainted!');
+    if (mode !== 'escaped') active.sound.play(won ? 'win' : 'lose');
     await phase('result', 1100);
     active.sound.stopMusic(); active.sound.play('off'); $('admin-battle').classList.add('battle-is-off');
     await phase('off', 450);
     restoreFraming(active);
-    if (won && mode === 'live') await hooks.prepareApprovals();
+    await hooks.prepareApprovals();
     if (run !== active) return;
     $('admin-battle').classList.add('battle-revealing');
     await phase('reveal', 950);
@@ -408,9 +447,22 @@
     await phase('device-exit', 650);
     if (won && mode === 'live') window.MAKERSPACE_SIGNATURES.completeBattleLogin();
     cleanup();
+    hooks.focusSignatures?.();
     if (won && mode === 'live') await window.MAKERSPACE_SIGNATURES.openAdmin();
     else if (won) hooks.announce('Preview complete. Signature approvals will open here once Cloudflare is connected.');
-    else hooks.announce('Battle lost. Open the capture ball to try again.');
+    else hooks.announce(mode === 'escaped' ? 'Back at the signature pages.' : 'Battle lost. You are back at the signature pages.');
+  }
+  function chooseFight() {
+    if (run?.phase !== 'choose-action') return;
+    $('battle-menu').hidden = true;
+    tell('Choose a move.'); $('battle-laser').hidden = false;
+    phase('choose-attack'); $('battle-laser').focus({ preventScroll: true });
+  }
+  async function escapeBattle() {
+    if (run?.phase !== 'choose-action') return;
+    $('battle-menu').hidden = true;
+    try { await finish(false, 'escaped'); }
+    catch (error) { if (error.name !== 'AbortError') failGracefully(error); }
   }
   async function laser() {
     const active = run;
@@ -422,7 +474,7 @@
       tell('THE DON used WATER BLAST!'); active.sound.play('water');
       await phase('water', 950); health('player', 18);
       await phase('water-impact', 420);
-      tell('One last move. Enter the site password.');
+      tell('To take him down we need to know the magic word!');
       $('battle-password-form').hidden = false; $('battle-password-submit').disabled = false;
       await phase('password'); $('battle-password').focus({ preventScroll: true });
     } catch (error) { if (error.name !== 'AbortError') failGracefully(error); }
@@ -476,7 +528,7 @@
     active.landing = { x: clamp(book.left - 53, 36, window.innerWidth - 60), y: clamp(book.top + book.height * .72, 160, window.innerHeight - 95) };
     const dialog = $('admin-battle'); dialog.classList.remove('battle-covered', 'battle-is-off', 'battle-revealing', 'battle-device-leaving');
     dialog.showModal(); dialog.dataset.phase = 'loading';
-    showFightControls(false); $('battle-password-form').hidden = true; $('battle-laser').hidden = true;
+    showFightControls(false); $('battle-password-form').hidden = true; $('battle-laser').hidden = true; $('battle-menu').hidden = true;
     $('battle-preview-label').hidden = Boolean(window.MAKERSPACE.signatureSettings.apiUrl);
     $('battle-preview-label').textContent = 'PREVIEW · approvals connect later';
     $('battle-sound').setAttribute('aria-pressed', String(soundOn)); $('battle-sound').textContent = soundOn ? 'SOUND ON' : 'SOUND OFF';
@@ -491,13 +543,15 @@
       await phase('takeover', 2550);
       dialog.classList.add('battle-covered'); showFightControls(true); resize();
       health('enemy', 100); health('player', 43);
-      tell('Laser him with the laser cutter!'); $('battle-laser').hidden = false;
-      await phase('choose-attack'); $('battle-laser').focus({ preventScroll: true });
+      tell('Wild THE DON appeared!'); await phase('encounter', 1400);
+      tell('Go! PIKACHU!'); await phase('send-out', 1050);
+      tell('What will PIKACHU do?'); $('battle-menu').hidden = false;
+      await phase('choose-action'); $('battle-fight').focus({ preventScroll: true });
     } catch (error) { if (run === active && error.name !== 'AbortError') failGracefully(error); }
   }
   function init(options) {
     hooks = options;
-    document.body.insertAdjacentHTML('beforeend', `<dialog id="admin-battle" class="admin-battle" aria-label="Pikachu versus The Don"><div class="battle-tools"><span id="battle-preview-label">PREVIEW · approvals connect later</span><button id="battle-sound" type="button" aria-pressed="true">Sound on</button><button id="battle-close" type="button" aria-label="Close battle">X</button></div><p class="battle-loading" role="status">Loading the cartridge…</p><div id="battle-display" class="battle-display"><canvas id="battle-canvas" aria-hidden="true"></canvas><div id="battle-huds" hidden><section id="battle-enemy-panel" class="battle-health-panel enemy-panel" aria-label="Opponent"><div><strong>THE DON</strong><span>Lv 18</span></div><div class="battle-hp-line"><span>HP</span><div role="progressbar" aria-label="The Don health" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i id="battle-enemy-health"></i></div></div></section><section id="battle-player-panel" class="battle-health-panel player-panel" aria-label="Player"><div><strong>PIKACHU</strong><span>Lv 18</span></div><div class="battle-hp-line"><span>HP</span><div role="progressbar" aria-label="Pikachu health" aria-valuemin="0" aria-valuemax="43" aria-valuenow="43"><i id="battle-player-health"></i></div></div><span id="battle-player-health-text">43 / 43</span></section></div><div id="battle-dialogue" class="battle-dialogue" hidden><p id="battle-message" role="status" aria-live="polite"></p><button id="battle-laser" type="button">LASER CUTTER <span aria-hidden="true">▶</span></button><form id="battle-password-form" hidden><label for="battle-password">Site password</label><div class="battle-password-row"><input id="battle-password" type="password" autocomplete="current-password" maxlength="256" required><button id="battle-password-submit" type="submit">FINISH <span aria-hidden="true">▶</span></button></div><p id="battle-password-error" role="alert"></p></form></div></div><div class="battle-off-line" aria-hidden="true"></div><div id="battle-handheld" class="battle-handheld" aria-hidden="true"><div class="handheld-top"><span>MAKER / COLOR</span><i></i></div><div class="handheld-bezel"><span class="handheld-power">●<br>POWER</span><div class="handheld-screen"></div><span class="handheld-brand">MAKER <b>C</b><b>O</b><b>L</b><b>O</b><b>R</b></span></div><div class="handheld-imprint">FIELD / 01</div><div class="handheld-controls"><div class="handheld-dpad"></div><div class="handheld-b">B</div><div class="handheld-a">A</div></div><div class="handheld-bottom"><div><i></i><i></i><span>SELECT &nbsp; START</span></div><div class="handheld-speaker"></div></div></div></dialog>`);
+    document.body.insertAdjacentHTML('beforeend', `<dialog id="admin-battle" class="admin-battle" aria-label="Pikachu versus The Don"><div class="battle-tools"><span id="battle-preview-label">PREVIEW · approvals connect later</span><button id="battle-sound" type="button" aria-pressed="true">Sound on</button><button id="battle-close" type="button" aria-label="Close battle">X</button></div><p class="battle-loading" role="status">Loading the cartridge…</p><div id="battle-display" class="battle-display"><canvas id="battle-canvas" aria-hidden="true"></canvas><div id="battle-huds" hidden><section id="battle-enemy-panel" class="battle-health-panel enemy-panel" aria-label="Opponent"><div><strong>THE DON</strong><span>Lv 18</span></div><div class="battle-hp-line"><span>HP</span><div role="progressbar" aria-label="The Don health" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i id="battle-enemy-health"></i></div></div></section><section id="battle-player-panel" class="battle-health-panel player-panel" aria-label="Player"><div><strong>PIKACHU</strong><span>Lv 18</span></div><div class="battle-hp-line"><span>HP</span><div role="progressbar" aria-label="Pikachu health" aria-valuemin="0" aria-valuemax="43" aria-valuenow="43"><i id="battle-player-health"></i></div></div><span id="battle-player-health-text">43 / 43</span></section></div><div id="battle-dialogue" class="battle-dialogue" hidden><p id="battle-message" role="status" aria-live="polite"></p><div id="battle-menu" hidden><button id="battle-fight" type="button">FIGHT</button><button id="battle-bag" type="button">BAG</button><button id="battle-party" type="button">POKEMON</button><button id="battle-run" type="button">RUN</button></div><button id="battle-laser" type="button">LASER CUTTER <span aria-hidden="true">▶</span></button><form id="battle-password-form" hidden><label for="battle-password">Magic word</label><div class="battle-password-row"><input id="battle-password" type="password" autocomplete="off" maxlength="256" required><button id="battle-password-submit" type="submit">FINISH <span aria-hidden="true">▶</span></button></div><p id="battle-password-error" role="alert"></p></form></div></div><div class="battle-off-line" aria-hidden="true"></div><div id="battle-handheld" class="battle-handheld" aria-hidden="true"><div class="handheld-top"><span>MAKER / COLOR</span><i></i></div><div class="handheld-bezel"><span class="handheld-power">●<br>POWER</span><div class="handheld-screen"></div><span class="handheld-brand">MAKER <b>C</b><b>O</b><b>L</b><b>O</b><b>R</b></span></div><div class="handheld-imprint">FIELD / 01</div><div class="handheld-controls"><div class="handheld-dpad"></div><div class="handheld-b">B</div><div class="handheld-a">A</div></div><div class="handheld-bottom"><div><i></i><i></i><span>SELECT &nbsp; START</span></div><div class="handheld-speaker"></div></div></div></dialog>`);
     const menu = document.querySelector('.volume-selector');
     menu.addEventListener('pointerenter', ensureSheets);
     menu.addEventListener('focusin', ensureSheets);
@@ -505,7 +559,11 @@
     $('battle-laser').addEventListener('click', laser);
     $('battle-password-form').addEventListener('submit', password);
     $('battle-close').addEventListener('click', cleanup);
-    for (const id of ['battle-sound', 'battle-close', 'battle-laser', 'battle-password', 'battle-password-submit']) {
+    $('battle-fight').addEventListener('click', chooseFight);
+    $('battle-bag').addEventListener('click', () => { if (run?.phase === 'choose-action') tell('Your bag is empty. Choose FIGHT!'); });
+    $('battle-party').addEventListener('click', () => { if (run?.phase === 'choose-action') tell('PIKACHU is ready for battle!'); });
+    $('battle-run').addEventListener('click', escapeBattle);
+    for (const id of ['battle-sound', 'battle-close', 'battle-fight', 'battle-bag', 'battle-party', 'battle-run', 'battle-laser', 'battle-password', 'battle-password-submit']) {
       $(id).addEventListener('pointerenter', () => { if (run) run.hover = id; });
       $(id).addEventListener('pointerleave', () => { if (run?.hover === id) run.hover = null; });
     }
@@ -519,5 +577,5 @@
     window.addEventListener('hashchange', () => { if (run) cleanup(); });
     window.addEventListener('pagehide', () => { if (run) cleanup(); });
   }
-  window.MAKERSPACE_BATTLE = { init, start, active: () => Boolean(run) };
+  window.MAKERSPACE_BATTLE = { init, start, layoutForViewport, active: () => Boolean(run) };
 })();

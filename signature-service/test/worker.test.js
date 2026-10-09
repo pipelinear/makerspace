@@ -69,7 +69,7 @@ test('pending uploads are private, approved signatures are public, and removal i
   assert.equal(approved.status, 200);
   const { signature } = await approved.json();
   assert.equal(signature.name, 'Nick & friends'); assert.equal(signature.revision, 1);
-  assert.ok(signature.y >= 38); assert.ok(signature.width <= 38);
+  assert.equal(signature.y, 12); assert.ok(signature.width <= 38);
   assert.equal((await f.request('/images/' + upload.id)).status, 200);
   assert.equal((await (await f.request('/signatures')).json()).signatures.length, 1);
   const removed = await f.request(`/admin/signatures/${upload.id}`, { method: 'DELETE', token });
@@ -91,7 +91,7 @@ test('approval chooses separate slots; resize preserves aspect ratio and stale e
   assert.equal(changed.page, 'right'); assert.equal(changed.x, 15);
   assert.equal(changed.height, 40 * changed.imageHeight / changed.imageWidth * .827);
   assert.equal((await f.request(`/admin/signatures/${first.id}`, { method: 'PATCH', token, body: { page: 'right', x: 10, y: 10, width: 20, revision: 1 } })).status, 409);
-  assert.equal((await f.request(`/admin/signatures/${first.id}`, { method: 'PATCH', token, body: { page: 'left', x: 10, y: 10, width: 20, revision: 2 } })).status, 400);
+  assert.equal((await f.request(`/admin/signatures/${first.id}`, { method: 'PATCH', token, body: { page: 'left', x: 10, y: 8, width: 20, revision: 2 } })).status, 400);
   assert.equal((await f.request(`/admin/signatures/${first.id}/place`, { method: 'POST', token, body: { revision: 2 } })).status, 200);
 });
 
@@ -133,7 +133,7 @@ test('retrying a submission does not duplicate it; full pages report capacity wi
   assert.equal((await submit(f, 'Same maker', undefined, first.id)).response.status, 202);
   assert.equal(f.objects.size, 1);
   const { data: { token } } = await f.login();
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 24; i++) {
     const upload = i ? await submit(f) : first;
     assert.equal((await f.request(`/admin/signatures/${upload.id}/approve`, { method: 'POST', token, body: { revision: 0 } })).status, 200);
   }
@@ -141,5 +141,5 @@ test('retrying a submission does not duplicate it; full pages report capacity wi
   const response = await f.request(`/admin/signatures/${extra.id}/approve`, { method: 'POST', token, body: { revision: 0 } });
   assert.equal(response.status, 409); assert.match((await response.json()).error, /full/);
   assert.equal((await f.request('/images/' + extra.id)).status, 404);
-  assert.equal((await (await f.request('/signatures')).json()).signatures.length, 20);
+  assert.equal((await (await f.request('/signatures')).json()).signatures.length, 24);
 });
