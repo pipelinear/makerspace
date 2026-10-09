@@ -1,9 +1,15 @@
-# Battle sprites
+# Battle assets
 
-Generated with the built-in imagegen tool on 2026-10-09. Both sheets have six equal cells in a 3 × 2 grid and an alpha-transparent background. Used by the battle canvas with nearest-neighbor scaling.
+All sprites and UI use nearest-neighbor scaling on a shared pixel canvas. Native HTML controls retain keyboard, password input and screen-reader support.
 
-- `mascot-sheet.png`: opponent based on the owner-provided school mascot photograph.
-- `spark-sheet.png`: original yellow workshop robot, generated after the tool rejected the animal designs.
+- `mascot-sheet.png`: The Don, based on the owner-provided school mascot photograph; generated with the built-in imagegen tool on 2026-10-09. Six equal cells in a 3 × 2 grid with alpha transparency. Actual opaque bounds anchor each pose to the grass. Idle uses the standing frame and a slow foot-anchored breathing cycle.
+- `pikachu-back.png`: original FireRed/LeafGreen back sprite from [PokéAPI's sprite collection](https://github.com/PokeAPI/sprites/blob/master/sprites/pokemon/versions/generation-iii/firered-leafgreen/back/25.png), © Nintendo / Creatures / GAME FREAK. Used at the owner's request. Source blob `0ea5ff592ea8c17abad26fdaf2c39f86fa00ba2a`; transparent 64 × 64 image, opaque bounds `[5,8,51,49]`. Attacks and defeat animate the standing sprite without alternating poses.
+- `frlg-font.png`: source bitmap lettering from [pret/pokefirered](https://github.com/pret/pokefirered/blob/master/graphics/fonts/latin_normal.png), © Nintendo / Creatures / GAME FREAK. Source blob `42e847faf0f281db3da29ac5a33b6c224a416207`. `admin-battle.js` includes the exact pixel coordinates for the Latin glyphs and their one-pixel shadows, mapped using the same repository's `charmap.txt`. The font is rendered as whole pixels rather than smooth browser text.
+- `spark-sheet.png`: retired workshop robot, retained with its original generation prompt below; no longer loaded by the battle.
+
+## Background music
+
+Juhani Junkala, “Title Screen,” from [5 Chiptunes (Action)](https://opengameart.org/content/5-chiptunes-action). The composer released this pack under [CC0](https://creativecommons.org/publicdomain/zero/1.0/). The audio and the composer's license note are also preserved in [this source mirror](https://github.com/petergyang/space-shooter-game/tree/main/assets/music). Music loops quietly, shares the sound toggle with battle effects, and stops on cancellation or before TV shutdown. The CC0 designation applies to the music, not the Pokémon art or font.
 
 Frame order, left to right: top row idle / alternate idle / attack; bottom row hit / defeat / entrance.
 

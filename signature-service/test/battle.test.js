@@ -7,15 +7,23 @@ const flush = async () => { for (let i = 0; i < 8; i++) await Promise.resolve();
 
 function fixture({ width = 1440, height = 900, reduced = false, live = false, authenticated = false } = {}) {
   let now = 0, counter = 0, prepared = 0, opened = 0, committed = 0, discarded = 0;
-  const nodes = new Map(), timers = new Map(), frames = new Map(), listeners = {}, phases = [], locks = [], announcements = [], draws = [];
-  const context2D = { clearRect() {}, fillRect() {}, save() {}, restore() {}, beginPath() {}, rect() {}, clip() {}, translate() {}, rotate() {}, scale() {}, drawImage(...args) { args.phase = nodes.get('admin-battle').dataset.phase; draws.push(args); } };
+  const nodes = new Map(), timers = new Map(), frames = new Map(), listeners = {}, phases = [], locks = [], announcements = [], draws = [], music = [], clips = [], phaseTimes = [];
+  let transform = { x: 0, y: 0, rotation: 0, alpha: 1 }; const stack = [];
+  const context2D = {
+    clearRect() { transform = { x: 0, y: 0, rotation: 0, alpha: 1 }; }, fillRect() {},
+    save() { stack.push({ ...transform }); }, restore() { transform = stack.pop(); }, beginPath() {},
+    rect(...args) { if (nodes.get('admin-battle').dataset.phase === 'takeover') clips.push({ at: now, args }); }, clip() {},
+    translate(x, y) { transform.x += x; transform.y += y; }, rotate(r) { transform.rotation += r; }, scale() {},
+    set globalAlpha(value) { transform.alpha = value; },
+    drawImage(...args) { args.phase = nodes.get('admin-battle').dataset.phase; args.transform = { ...transform }; draws.push(args); }
+  };
   class Element {
     constructor(id) {
-      this.id = id; this.style = { transform: '', transformOrigin: '' }; this.hidden = false; this.open = false; this.inert = false; this.disabled = false; this.value = ''; this.listeners = {}; this.attrs = {};
+      this.id = id; this.style = { transform: '', transformOrigin: '', setProperty(name, value) { this[name] = value; } }; this.hidden = false; this.open = false; this.inert = false; this.disabled = false; this.value = ''; this.listeners = {}; this.attrs = {};
       const classes = new Set();
       this.classList = { add: (...names) => names.forEach(n => classes.add(n)), remove: (...names) => names.forEach(n => classes.delete(n)), contains: n => classes.has(n), toggle: (n, yes) => yes ? classes.add(n) : classes.delete(n) };
       const state = {};
-      this.dataset = new Proxy(state, { set(target, name, value) { target[name] = value; if (id === 'admin-battle' && name === 'phase') phases.push(value); return true; } });
+      this.dataset = new Proxy(state, { set(target, name, value) { target[name] = value; if (id === 'admin-battle' && name === 'phase') { phases.push(value); phaseTimes.push({ name: value, at: now }); } return true; } });
     }
     get clientWidth() { return window.innerWidth; }
     get clientHeight() { return window.innerHeight; }
@@ -46,6 +54,7 @@ function fixture({ width = 1440, height = 900, reduced = false, live = false, au
     for (const side of ['enemy', 'player']) nodes.get(`battle-${side}-health`).parentElement = new Element();
   };
   const window = {
+    Audio: class { constructor(src) { this.src = src; this.paused = true; music.push(this); } play() { this.paused = false; return Promise.resolve(); } pause() { this.paused = true; } },
     innerWidth: width, innerHeight: height,
     matchMedia: () => ({ matches: reduced }),
     MAKERSPACE: { signatureSettings: { apiUrl: live ? 'https://service.test' : '' } },
@@ -80,7 +89,7 @@ function fixture({ width = 1440, height = 900, reduced = false, live = false, au
     for (let i = 0; i < 30; i++) { await flush(); if (nodes.get('admin-battle').dataset.phase === target) return; if (!await advance()) break; }
     assert.equal(nodes.get('admin-battle').dataset.phase, target);
   }
-  return { battle, nodes, window, document, phases, locks, draws, announcements, timers, frames, until, advance, async finish() { for (let i = 0; i < 30 && battle.active(); i++) await advance(); assert.equal(battle.active(), false); }, get result() { return { prepared, opened, committed, discarded }; }, dispatch(name) { (listeners[name] || []).forEach(fn => fn()); } };
+  return { battle, nodes, window, document, phases, locks, draws, announcements, timers, frames, music, clips, phaseTimes, until, advance, async finish() { for (let i = 0; i < 30 && battle.active(); i++) await advance(); assert.equal(battle.active(), false); }, get result() { return { prepared, opened, committed, discarded }; }, dispatch(name) { (listeners[name] || []).forEach(fn => fn()); } };
 }
 
 async function reachPassword(f) {
@@ -94,9 +103,17 @@ test('preview victory follows every phase and never opens approvals', async () =
   const f = fixture(); await reachPassword(f);
   assert.deepEqual(f.phases.slice(1, 8), ['bounce-one', 'bounce-two', 'throw', 'land', 'release', 'takeover', 'choose-attack']);
   assert.ok(f.draws.some(args => args[0].src.includes('mascot-sheet')));
-  assert.ok(f.draws.some(args => args[0].src.includes('spark-sheet')));
+  assert.ok(f.draws.some(args => args[0].src.includes('pikachu-back')));
   const release = f.draws.find(args => args.phase === 'release');
-  assert.ok((release[5] + release[7]) * 1440 / 512 < 400, 'released sprite stays entirely to the left of the book');
+  assert.ok((release.transform.x + release[5] + release[7]) * 1440 / 384 < 400, 'released sprite stays entirely to the left of the book');
+  const takeover = f.phaseTimes.find(p => p.name === 'takeover');
+  assert.equal(f.phaseTimes.find(p => p.name === 'choose-attack').at - takeover.at, 2550);
+  assert.ok(f.clips.filter(c => c.at === takeover.at).length >= 40, 'takeover starts as a larger established patch');
+  assert.equal(f.music.length, 1); assert.equal(f.music[0].loop, true); assert.equal(f.music[0].paused, false);
+  const standing = f.draws.filter(d => d.phase === 'choose-attack');
+  assert.ok(standing.length >= 2);
+  assert.ok(standing.every(d => d[6] + d[8] === 0), 'opaque sprite bottoms stay on the foot anchor during idle');
+  assert.ok(standing.filter(d => d[0].src.includes('pikachu-back')).every(d => d[1] === 5 && d[2] === 8), 'Pikachu keeps the standing pose');
   f.nodes.get('battle-password').value = 'nick'; const submitted = f.nodes.get('battle-password-form').emit('submit');
   await f.finish(); await submitted;
   assert.ok(f.phases.includes('faint-enemy')); assert.ok(!f.phases.includes('faint-player'));
@@ -107,14 +124,19 @@ test('preview victory follows every phase and never opens approvals', async () =
   assert.equal(f.frames.size, 0); assert.equal(f.timers.size, 0);
   assert.equal(f.nodes.get('battle-password').value, '');
   assert.equal(f.document.activeElement.id, 'footer-volume');
+  assert.equal(f.music[0].paused, true);
 });
-test('wrong password knocks out Spark and real victory commits access after device removal', async () => {
+test('wrong password tumbles Pikachu without fading and real victory commits access after device removal', async () => {
   const loser = fixture({ live: true }); await reachPassword(loser);
   loser.nodes.get('battle-password').value = 'wrong'; const lost = loser.nodes.get('battle-password-form').emit('submit');
   await loser.finish(); await lost;
   assert.ok(loser.phases.includes('final-water')); assert.ok(loser.phases.includes('faint-player'));
   assert.equal(loser.nodes.get('battle-player-health-text').textContent, '0 / 43');
   assert.equal(loser.result.opened, 0); assert.equal(loser.result.committed, 0);
+  const falling = loser.draws.filter(d => d[0].src.includes('pikachu-back') && d.phase === 'faint-player');
+  assert.ok(falling.some(d => d.transform.rotation < -1.5), 'Pikachu falls onto its side');
+  assert.ok(falling.every(d => d.transform.alpha === 1), 'the character never fades during defeat');
+  assert.ok(loser.draws.some(d => d[0].src.includes('pikachu-back') && d.phase === 'result' && d.transform.alpha === 1 && d.transform.rotation < -1.5), 'fallen Pikachu remains until TV off');
   const winner = fixture({ live: true }); await reachPassword(winner);
   winner.nodes.get('battle-password').value = 'nick'; const won = winner.nodes.get('battle-password-form').emit('submit');
   await winner.until('device-exit'); assert.equal(winner.result.committed, 0);
@@ -148,8 +170,11 @@ test('mobile, reduced motion, resize, repeated clicks and cancellation restore t
   assert.deepEqual(f.locks, [true, false]); assert.equal(f.battle.active(), false);
   assert.equal(f.nodes.get('cover-stage').style.transform, ''); assert.equal(f.frames.size, 0);
   assert.equal(f.document.body.style.overflow, 'auto');
+  assert.equal(f.music[0].paused, true);
   await reachPassword(f); await f.nodes.get('battle-sound').emit('click');
   assert.equal(f.nodes.get('battle-sound').attrs['aria-pressed'], 'false');
+  assert.equal(f.music[1].muted, true);
+  await f.nodes.get('battle-sound').emit('click'); assert.equal(f.music[1].muted, false);
   f.dispatch('hashchange'); assert.equal(f.battle.active(), false); assert.equal(f.frames.size, 0);
 });
 test('an active admin session reopens the desk without running another battle', async () => {
