@@ -179,10 +179,9 @@ window.MAKERSPACE = {
   ],
   clubSignatures: [],
   signatureSettings: {
-    creatorUrl: 'https://www.textstudio.com/design/studio',
-    email: '668442@my.sbunified.org',
+    creatorUrl: 'https://shaderlabs.app/',
     // Set this to the separate Makerspace upload service after Cloudflare setup.
-    apiUrl: ''
+    apiUrl: 'https://makerspace-signatures.royal-hill-59f4.workers.dev'
   },
   clubLeaders: [
     { role: 'President', name: null, image: null, description: 'Helps shape the club and brings our projects together.' },

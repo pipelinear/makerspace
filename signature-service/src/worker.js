@@ -1,4 +1,5 @@
 import { normalizePNG } from './png.js';
+import { R2_LIMITS, BudgetError, reserveOperation, reserveStorage, releaseStorage, deleteObject, usage, usageWindow } from './r2-budget.js';
 
 class APIError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -28,8 +29,8 @@ async function boundedBody(request, maximum) {
   for (const part of parts) { result.set(part, at); at += part.length; }
   return result;
 }
-async function bodyJSON(request) {
-  try { return JSON.parse(new TextDecoder().decode(await boundedBody(request, 4096))); }
+async function bodyJSON(request, maximum = 4096) {
+  try { return JSON.parse(new TextDecoder().decode(await boundedBody(request, maximum))); }
   catch (error) { if (error instanceof APIError) throw error; fail(400, 'Invalid request.'); }
 }
 async function rateLimit(request, env, purpose, limit, seconds) {
@@ -83,6 +84,10 @@ async function handle(request, env) {
     const { results } = await env.DB.prepare("SELECT * FROM signatures WHERE status = 'approved' ORDER BY created_at, id").all();
     return json({ signatures: results.map(publicSignature) });
   }
+  if (path === '/layout' && method === 'GET') {
+    const row = await env.DB.prepare('SELECT revision, placements FROM book_layout WHERE id = 1').first();
+    return json({ revision: row.revision, placements: JSON.parse(row.placements) });
+  }
   if (path === '/submissions' && method === 'POST') {
     await rateLimit(request, env, 'upload', 60, 3600);
     const type = request.headers.get('Content-Type') || '';
@@ -97,19 +102,24 @@ async function handle(request, env) {
     const existing = await env.DB.prepare('SELECT id FROM signatures WHERE id = ?').bind(id).first();
     if (existing) return json({ id, pending: true }, 202);
     const count = await env.DB.prepare("SELECT COUNT(*) AS total FROM signatures WHERE status = 'pending'").first();
-    if (count.total >= 250) fail(503, 'The approval queue is full. Try again after an admin reviews it.');
+    if (count.total >= 250) fail(503, 'Uploads are paused for now. Please try again later.');
     const file = form.get('image');
     if (!(file instanceof Blob) || file.type !== 'image/png') fail(400, 'Choose a transparent PNG.');
     let image;
-    try { image = await normalizePNG(new Uint8Array(await file.arrayBuffer())); }
+    try { image = await normalizePNG(new Uint8Array(await file.arrayBuffer()), { maxBytes: R2_LIMITS.imageBytes }); }
     catch (error) { fail(400, error.message); }
+    if (image.bytes.length > R2_LIMITS.imageBytes) fail(413, 'Choose an image under 512 KB.');
     const key = `signatures/${id}/${crypto.randomUUID()}.png`;
-    await env.SIGNATURE_IMAGES.put(key, image.bytes, { httpMetadata: { contentType: 'image/png' } });
+    await reserveStorage(env, key, image.bytes.length);
+    let attempted = false;
     try {
+      await reserveOperation(env, 'write'); attempted = true;
+      await env.SIGNATURE_IMAGES.put(key, image.bytes, { storageClass: 'Standard', httpMetadata: { contentType: 'image/png' } });
       await env.DB.prepare('INSERT INTO signatures(id, name, image_key, image_width, image_height, created_at) VALUES (?, ?, ?, ?, ?, ?)').bind(id, name, key, image.width, image.height, Date.now()).run();
     } catch (error) {
-      // Each attempt has a unique object key, so cleanup cannot delete another upload.
-      await env.SIGNATURE_IMAGES.delete(key);
+      // A failed delete keeps its storage reservation, including ambiguous PUT failures.
+      // Unique keys mean retry cleanup cannot delete another successful submission.
+      try { if (attempted) await deleteObject(env, key); else await releaseStorage(env, key); } catch { /* Keep the conservative reservation. */ }
       if (!await env.DB.prepare('SELECT id FROM signatures WHERE id = ?').bind(id).first()) throw error;
     }
     return json({ id, pending: true }, 202);
@@ -131,17 +141,75 @@ async function handle(request, env) {
   const adminImage = path.match(/^\/admin\/images\/([a-f0-9-]{36})$/i);
   let session;
   if (path.startsWith('/admin/')) session = await authenticate(request, env);
-  if ((publicImage || adminImage) && method === 'GET') {
+  if ((publicImage || adminImage) && ['GET', 'HEAD'].includes(method)) {
     const id = (publicImage || adminImage)[1];
     const row = await env.DB.prepare(`SELECT image_key FROM signatures WHERE id = ?${publicImage ? " AND status = 'approved'" : ''}`).bind(id).first();
     if (!row) fail(404, 'Image not found.');
+    const etag = `"${id}"`;
+    const imageHeaders = { 'Content-Type': 'image/png', 'X-Content-Type-Options': 'nosniff', 'Content-Disposition': 'inline',
+      'Cache-Control': publicImage ? 'private, max-age=86400' : 'no-store', 'ETag': etag };
+    if (method === 'HEAD') return new Response(null, { headers: imageHeaders });
+    // Approval is checked before accepting a cached validator, so a removed
+    // image cannot be retrieved or revalidated by a new server request.
+    if (publicImage && request.headers.get('If-None-Match')?.split(',').map(value => value.trim()).includes(etag)) return new Response(null, { status: 304, headers: imageHeaders });
+    await reserveOperation(env, 'read');
     const object = await env.SIGNATURE_IMAGES.get(row.image_key);
     if (!object) fail(404, 'Image not found.');
-    return new Response(object.body, { headers: { 'Content-Type': 'image/png', 'X-Content-Type-Options': 'nosniff', 'Content-Disposition': 'inline' } });
+    return new Response(object.body, { headers: imageHeaders });
   }
+  if (path === '/admin/usage' && method === 'GET') return json(await usage(env));
   if (path === '/admin/logout' && method === 'POST') {
     await env.DB.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(session).run();
     return json({ ok: true });
+  }
+  if (path === '/admin/layout' && method === 'PUT') {
+    const body = await bodyJSON(request, 256000);
+    if (!Number.isInteger(body.revision) || !Array.isArray(body.placements) || body.placements.length > 40) fail(400, 'Invalid book layout.');
+    const presets = { makerspace: [360, 110], sbhs: [180, 180], robot: [180, 180], spark: [180, 180], orbit: [240, 160], 'make-something': [320, 160] };
+    const ids = new Set();
+    const placements = body.placements.map(item => {
+      if (!item || !Object.hasOwn(presets, item.key) || !/^preset-[a-f0-9-]{36}$/.test(item.id || '') || ids.has(item.id)) fail(400, 'Choose a design from the palette.');
+      ids.add(item.id);
+      const [image_width, image_height] = presets[item.key];
+      const pos = placement({ image_width, image_height }, item.page, item.x, item.y, item.width);
+      return { id: item.id, key: item.key, page: pos.page, x: pos.x, y: pos.y, width: pos.width };
+    });
+    const uploads = body.signatures ?? [], removed = body.removed ?? [];
+    if (!Array.isArray(uploads) || !Array.isArray(removed) || uploads.length + removed.length > R2_LIMITS.images) fail(400, 'Invalid collection.');
+    const { results: rows } = await env.DB.prepare('SELECT * FROM signatures').all();
+    const indexed = new Map(rows.map(row => [row.id, row]));
+    const validate = item => {
+      if (!item || ids.has(item.id) || !Number.isInteger(item.revision)) fail(400, 'Invalid image selection.');
+      ids.add(item.id);
+      const row = indexed.get(item.id);
+      if (!row || row.revision !== item.revision) fail(409, 'An image changed. Reload the saved collection before trying again.');
+      return row;
+    };
+    const selected = uploads.map(item => { const row = validate(item); return { id: item.id, revision: item.revision, ...placement(row, item.page, item.x, item.y, item.width) }; });
+    removed.forEach(validate);
+    const expected = [...selected, ...removed].map(({ id, revision }) => ({ id, revision }));
+    const saveID = crypto.randomUUID();
+    const guard = 'EXISTS (SELECT 1 FROM book_layout WHERE id = 1 AND save_id = ?)';
+    // D1 batch is one transaction. The unique save marker ensures a stale
+    // layout cannot publish or move any image after its revision check fails.
+    const statements = [env.DB.prepare(`UPDATE book_layout SET placements = ?, revision = revision + 1, save_id = ?
+      WHERE id = 1 AND revision = ? AND NOT EXISTS (
+        SELECT 1 FROM json_each(?) expected LEFT JOIN signatures s ON s.id = json_extract(expected.value, '$.id')
+        WHERE s.id IS NULL OR s.revision != json_extract(expected.value, '$.revision')
+      ) RETURNING revision, placements`).bind(JSON.stringify(placements), saveID, body.revision, JSON.stringify(expected))];
+    if (selected.length) statements.push(env.DB.prepare(`WITH chosen AS (
+      SELECT json_extract(value, '$.id') AS id, json_extract(value, '$.page') AS page,
+        json_extract(value, '$.x') AS x, json_extract(value, '$.y') AS y,
+        json_extract(value, '$.width') AS width, json_extract(value, '$.height') AS height FROM json_each(?)
+      ) UPDATE signatures SET status = 'approved', page = chosen.page, x = chosen.x, y = chosen.y,
+        display_width = chosen.width, display_height = chosen.height, revision = signatures.revision + 1
+      FROM chosen WHERE signatures.id = chosen.id AND ${guard}`).bind(JSON.stringify(selected), saveID));
+    if (removed.length) statements.push(env.DB.prepare(`UPDATE signatures SET status = 'pending', page = NULL, x = NULL, y = NULL, display_width = NULL, display_height = NULL, revision = revision + 1
+      WHERE id IN (SELECT json_extract(value, '$.id') FROM json_each(?)) AND ${guard}`).bind(JSON.stringify(removed), saveID));
+    statements.push(env.DB.prepare("SELECT * FROM signatures WHERE status = 'approved' ORDER BY created_at, id"));
+    const results = await env.DB.batch(statements), row = results[0].results?.[0];
+    if (!row) fail(409, 'Another admin saved this page. Reload the saved collection before trying again.');
+    return json({ revision: row.revision, placements: JSON.parse(row.placements), signatures: results.at(-1).results.map(publicSignature) });
   }
   if (path === '/admin/signatures' && method === 'GET') {
     const { results } = await env.DB.prepare('SELECT * FROM signatures ORDER BY created_at, id').all();
@@ -153,7 +221,7 @@ async function handle(request, env) {
     if (!row) fail(404, 'Signature not found.');
     if (method === 'DELETE' && !match[2]) {
       await env.DB.prepare('DELETE FROM signatures WHERE id = ?').bind(row.id).run();
-      await env.SIGNATURE_IMAGES.delete(row.image_key);
+      await deleteObject(env, row.image_key);
       return json({ ok: true });
     }
     if (method === 'POST' && match[2]) {
@@ -185,23 +253,24 @@ export default {
       if (request.method === 'OPTIONS') response = new Response(null, { status: 204 });
       else response = await handle(request, env);
     } catch (error) {
-      response = json({ error: error instanceof APIError ? error.message : 'The service could not save this change. Please try again.' }, error.status || 500);
+      response = json({ error: (error instanceof APIError || error instanceof BudgetError) ? error.message : 'The service could not save this change. Please try again.' }, error.status || 500);
     }
     const headers = new Headers(response.headers);
-    headers.set('Cache-Control', 'no-store');
+    if (!headers.has('Cache-Control')) headers.set('Cache-Control', 'no-store');
     headers.set('X-Content-Type-Options', 'nosniff');
     headers.set('Vary', 'Origin');
     if (origin && allowed.includes(origin)) {
       headers.set('Access-Control-Allow-Origin', origin);
       headers.set('Access-Control-Allow-Headers', 'Authorization, Content-Type');
-      headers.set('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
+      headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
     }
     return new Response(response.body, { status: response.status, headers });
   },
   async scheduled(_event, env) {
     await env.DB.batch([
       env.DB.prepare('DELETE FROM sessions WHERE expires_at <= ?').bind(Date.now()),
-      env.DB.prepare('DELETE FROM rate_limits WHERE expires_at <= ?').bind(Math.floor(Date.now() / 1000))
+      env.DB.prepare('DELETE FROM rate_limits WHERE expires_at <= ?').bind(Math.floor(Date.now() / 1000)),
+      env.DB.prepare('DELETE FROM r2_usage WHERE day < ?').bind(usageWindow().cutoff)
     ]);
   }
 };

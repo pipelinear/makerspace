@@ -83,8 +83,8 @@
       const y = bounded(signature.y, 12, 0, 94 - (signature.height || 10));
       const rotation = bounded(signature.rotation, 0, -20, 20);
       const selected = window.MAKERSPACE_SIGNATURES?.isEditing(signature.id);
-      return `<figure class="signature-entry${selected ? ' is-selected' : ''}"${signature.id ? ` data-signature-id="${escape(signature.id)}"` : ''}${selected ? ' tabindex="0" aria-label="Move signature with arrow keys or drag"' : ''} style="left:${x}%;top:${y}%;width:${width}%;transform:rotate(${rotation}deg)">${picture(signature.image, signature.alt || `${signature.name}’s signature`, 'loading="eager" decoding="async" draggable="false"')}<figcaption class="sr-only">${escape(signature.name)}</figcaption></figure>`;
-    }).join('')}</div>${side === 'left' ? window.MAKERSPACE_SIGNATURES?.noteHTML() || '' : window.MAKERSPACE_SIGNATURES?.toolbarHTML() || ''}<span class="signature-page-number" aria-hidden="true">${SIGNATURES_PAGE * 2 + (side === 'left' ? 1 : 2)}</span></div>`;
+      return `<figure class="signature-entry${selected ? ' is-selected' : ''}"${signature.id ? ` data-signature-id="${escape(signature.id)}"` : ''}${window.MAKERSPACE_SIGNATURES?.hasAdminSession() ? ' tabindex="0" aria-label="Drag image or use arrow keys to move"' : ''} style="left:${x}%;top:${y}%;width:${width}%;transform:rotate(${rotation}deg)">${picture(signature.image, signature.alt || `${signature.name}’s signature`, 'loading="eager" decoding="async" draggable="false"')}<figcaption class="sr-only">${escape(signature.name)}</figcaption>${window.MAKERSPACE_SIGNATURES?.handlesHTML(signature) || ''}</figure>`;
+    }).join('')}</div>${side === 'left' ? window.MAKERSPACE_SIGNATURES?.noteHTML() || '' : ''}<span class="signature-page-number" aria-hidden="true">${SIGNATURES_PAGE * 2 + (side === 'left' ? 1 : 2)}</span></div>`;
   }
 
   function ideaHTML(tool, idea, index) {
@@ -129,13 +129,20 @@
     }).catch(() => {});
   }
 
+  function setPageKind(page, tool) {
+    page.classList.toggle('is-club-page', ['the-club', 'club-leaders'].includes(tool.slug));
+    page.classList.toggle('is-signature-page', tool.slug === 'club-signatures');
+  }
+
   function paintPoster(tool) {
+    setPageKind($('poster-page'), tool);
     $('poster-page').style.setProperty('--poster-bg', tool.background);
     $('poster-page').style.setProperty('--poster-color', tool.color);
     $('poster-page').innerHTML = posterHTML(tool);
   }
 
   function paintDetail(tool, index) {
+    setPageKind($('detail-page'), tool);
     $('detail-page').innerHTML = detailHTML(tool, index);
   }
 
@@ -164,6 +171,7 @@
     paintDetail(tool, state.page);
     updateControls();
     preloadNeighbors();
+    window.MAKERSPACE_SIGNATURES?.syncRail?.();
   }
 
   function preloadNeighbors() {
@@ -307,6 +315,7 @@
         front.appendChild(oldDetail);
         paintDetail(nextTool, next);
         const newPoster = clonePage($('poster-page'));
+        setPageKind(newPoster, nextTool);
         newPoster.innerHTML = posterHTML(nextTool);
         newPoster.style.setProperty('--poster-color', nextTool.color);
         newPoster.style.setProperty('--poster-bg', nextTool.background);
@@ -315,6 +324,7 @@
         front.appendChild(oldPoster);
         paintPoster(nextTool);
         const newDetail = clonePage($('detail-page'));
+        setPageKind(newDetail, nextTool);
         newDetail.innerHTML = detailHTML(nextTool, next);
         back.appendChild(newDetail);
       }
@@ -340,10 +350,12 @@
         // Keep decoded image nodes from the arriving sheet instead of rebuilding it.
         const arrived = back.firstElementChild;
         if (mobile || forward) {
+          setPageKind($('poster-page'), nextTool);
           $('poster-page').style.setProperty('--poster-bg', nextTool.background);
           $('poster-page').style.setProperty('--poster-color', nextTool.color);
           $('poster-page').replaceChildren(...arrived.childNodes);
         } else {
+          setPageKind($('detail-page'), nextTool);
           $('detail-page').replaceChildren(...arrived.childNodes);
         }
         turn.getAnimations().forEach((animation) => animation.cancel());
@@ -355,9 +367,7 @@
     state.busy = false;
     if (reducedMotion.matches) paintSpread();
     else { updateControls(); preloadNeighbors(); }
-    if (mobile && !forNavigation) {
-      $('reader').scrollIntoView({ behavior: reducedMotion.matches ? 'instant' : 'smooth', block: 'start' });
-    }
+    window.MAKERSPACE_SIGNATURES?.syncRail?.();
     if (updateHistory) history.replaceState(null, '', `#collections/${tools[next].slug}`);
     // Keep keyboard focus on an enabled control at the first and last spreads.
     if (document.activeElement === $('next-page') && $('next-page').disabled) $('previous-page').focus({ preventScroll: true });
@@ -2410,10 +2420,14 @@
   paintSpread();
   route();
   showIntro();
+  const updateRoboticsCue = () => document.body.classList.toggle('robotics-scrolled', window.scrollY > 80);
+  window.addEventListener('scroll', updateRoboticsCue, { passive: true });
+  updateRoboticsCue();
   window.MAKERSPACE_SIGNATURES?.init({ repaint: paintSpread, available: () => state.open && state.page === SIGNATURES_PAGE && !state.busy && !state.navigating });
   window.MAKERSPACE_BATTLE?.init({
     canStart: () => state.view === 'collections' && !state.busy && !state.navigating && !document.body.classList.contains('intro-active') && !$('volume-password-dialog').open && !window.MAKERSPACE_SIGNATURES?.interacting(),
     closeMenu: () => setVolumeMenu(false),
+    closeBook: () => closeBook({ forNavigation: true }),
     lock: locked => { state.navigating = locked; updateControls(); },
     bookRect: () => $(state.open ? 'book-spread' : 'open-book').getBoundingClientRect(),
     prepareApprovals: async () => {

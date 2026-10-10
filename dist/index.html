@@ -15,18 +15,21 @@
   <link rel="preload" as="image" href="assets/robotics-charred-paper.png">
   <link rel="preload" as="image" href="assets/lighter-hand.png">
   <link rel="preload" as="image" href="assets/book-hand-flat.png">
-  <link rel="stylesheet" href="styles.css?v=20261009-battle-signing">
-  <script src="content.js?v=20261009-battle-signing" defer></script>
-  <script src="signatures.js?v=20261009-battle-signing" defer></script>
-  <script src="admin-battle.js?v=20261009-battle-signing" defer></script>
+  <link rel="stylesheet" href="styles.css?v=20261009-direct-edit">
+  <script src="content.js?v=20261009-origami" defer></script>
+  <script src="signature-flight.js?v=20261009-origami" defer></script>
+  <script src="signature-presets.js?v=20261009-origami" defer></script>
+  <script src="signatures.js?v=20261009-local-preview" defer></script>
+  <script src="admin-battle.js?v=20261009-bag-recall" defer></script>
   <script src="assets/robotics-paper-relief.js" defer></script>
-  <script src="app.js?v=20261009-battle-signing" defer></script>
+  <script src="app.js?v=20261009-close-before-battle" defer></script>
 </head>
 <body>
   <div class="intro" id="intro" aria-label="Welcome to Makerspace">
     <span class="intro-edition">SBHS<br>2026–27</span>
     <div class="intro-word"><span>Makerspace</span></div>
     <span class="intro-location">Santa<br>Barbara</span>
+    <a class="intro-credit" href="https://github.com/pipelinear">Website by Nick Gaston</a>
   </div>
   <header class="site-header">
     <nav aria-label="Main navigation">
@@ -54,6 +57,7 @@
             <span class="cover-shade"></span>
             <span class="cover-title">THE MAKERSPACE<br>COLLECTION</span>
             <span class="cover-caption">A FIELD GUIDE TO MAKING THINGS<br>SANTA BARBARA HIGH SCHOOL</span>
+            <span class="cover-credit">Made by Nick Gaston</span>
             <span class="cover-volume">01</span>
           </span>
           </span>
@@ -78,6 +82,7 @@
     </section>
     <section id="robotics-view" class="view robotics-view" aria-labelledby="robotics-title" hidden>
       <div class="robotics-hero"><div class="robotics-intro"><span class="eyebrow">COURSES / COMING TO THE MAKERSPACE</span><h1 id="robotics-title">Make it.<br>Code it.<br><em>Move it.</em></h1><p>Robotics at SBHS. A place to turn curiosity into something that moves, senses, and responds.</p><a href="#robotics-course" class="text-link">Inside the course</a></div><div class="robotics-poster"><img id="robotics-image" alt="A real educational robot, shown as an example for the future Robotics course" loading="lazy"><span class="robotics-stamp">ROBOTICS<br>SBHS / 2026</span><span class="robotics-poster-bottom">THINK WITH YOUR HANDS.</span></div></div>
+      <a href="#robotics-course" class="robotics-down" aria-label="Scroll down to explore the Robotics course"><svg width="22" height="28" viewBox="0 0 22 28" fill="none" aria-hidden="true"><path d="M11 2v23M3 17l8 8 8-8" stroke="currentColor" stroke-width="1.5"/></svg></a>
       <div class="course-note" id="robotics-course"><span class="eyebrow">A COURSE IN THE MAKING</span><p>We’re planning a Robotics class alongside the Makerspace club. Here’s an example of what the course could explore. The final syllabus, teacher, schedule, and enrollment details are still to come.</p></div>
       <div id="robotics-modules" class="course-modules"><h2>From a first idea<br>to a first movement.</h2><div><article><span>01 / DESIGN</span><h3>Give an idea a shape.</h3><p>Sketch, model in CAD, and prototype a chassis or mechanism using the tools in the room.</p></article><article><span>02 / ELECTRONICS</span><h3>Make the connections.</h3><p>Explore circuits, motors, sensors, and microcontrollers. Learn how a robot reads the world.</p></article><article><span>03 / PROGRAMMING</span><h3>Tell it what to do.</h3><p>Write simple control programs, test movement, and work through the little surprises that make building interesting.</p></article><article><span>04 / BUILD TOGETHER</span><h3>Put it all in motion.</h3><p>Combine design, hardware, and code in a team project. Test it, rethink it, and make it work a little better.</p></article></div></div>
       <div class="robotics-footnote"><p>You don’t have to wait for a class to start making.</p><button id="robotics-club-button">Meet the Makerspace club</button></div>

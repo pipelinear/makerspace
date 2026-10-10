@@ -37,7 +37,7 @@ export async function encodePNG(width, height, rgba) {
   return join([MAGIC, chunk('IHDR', header), chunk('IDAT', compressed), chunk('IEND', new Uint8Array())]);
 }
 const invalid = (message = 'Choose a transparent PNG exported by the signature editor.') => { throw new Error(message); };
-export async function normalizePNG(bytes) {
+export async function normalizePNG(bytes, { maxBytes = 2 * 1024 * 1024 } = {}) {
   if (bytes.length > 2 * 1024 * 1024) invalid('The prepared PNG must be under 2 MB.');
   if (!MAGIC.every((byte, i) => bytes[i] === byte)) invalid();
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -83,7 +83,7 @@ export async function normalizePNG(bytes) {
   } catch { invalid(); }
   if (size !== expected) invalid();
   const rgba = new Uint8Array(width * height * 4);
-  let transparent = false, minX = width, minY = height, maxX = -1, maxY = -1;
+  let minX = width, minY = height, maxX = -1, maxY = -1;
   for (let y = 0; y < height; y++) {
     const filter = rows[y * (stride + 1)];
     if (filter > 4) invalid();
@@ -94,17 +94,28 @@ export async function normalizePNG(bytes) {
       const predict = filter === 1 ? a : filter === 2 ? b : filter === 3 ? Math.floor((a + b) / 2) : filter === 4 ? pa <= pb && pa <= pc ? a : pb <= pc ? b : c : 0;
       rgba[i] = (rows[y * (stride + 1) + x + 1] + predict) & 255;
       if (x % 4 === 3) {
-        if (rgba[i] < 8) transparent = true;
         if (rgba[i] >= 8) { const px = (x - 3) / 4; minX = Math.min(minX, px); maxX = Math.max(maxX, px); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
       }
     }
   }
-  if (!transparent) invalid('Export with a transparent background, then try again.');
   if (maxX < 0) invalid('This image is blank. Add your name before exporting.');
   minX = Math.max(0, minX - 8); minY = Math.max(0, minY - 8);
   maxX = Math.min(width - 1, maxX + 8); maxY = Math.min(height - 1, maxY + 8);
-  const croppedWidth = maxX - minX + 1, croppedHeight = maxY - minY + 1;
-  const cropped = new Uint8Array(croppedWidth * croppedHeight * 4);
+  let croppedWidth = maxX - minX + 1, croppedHeight = maxY - minY + 1;
+  let cropped = new Uint8Array(croppedWidth * croppedHeight * 4);
   for (let y = 0; y < croppedHeight; y++) cropped.set(rgba.subarray(((y + minY) * width + minX) * 4, ((y + minY) * width + maxX + 1) * 4), y * croppedWidth * 4);
-  return { bytes: await encodePNG(croppedWidth, croppedHeight, cropped), width: croppedWidth, height: croppedHeight };
+  let output = await encodePNG(croppedWidth, croppedHeight, cropped);
+  while (output.length > maxBytes && (croppedWidth > 1 || croppedHeight > 1)) {
+    const width = Math.max(1, Math.floor(croppedWidth * .8)), height = Math.max(1, Math.floor(croppedHeight * .8));
+    const smaller = new Uint8Array(width * height * 4);
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+      const source = (Math.min(croppedHeight - 1, Math.floor((y + .5) * croppedHeight / height)) * croppedWidth + Math.min(croppedWidth - 1, Math.floor((x + .5) * croppedWidth / width))) * 4;
+      const at = (y * width + x) * 4;
+      for (let channel = 0; channel < 4; channel++) smaller[at + channel] = cropped[source + channel];
+    }
+    croppedWidth = width; croppedHeight = height; cropped = smaller;
+    output = await encodePNG(width, height, cropped);
+  }
+  if (output.length > maxBytes) invalid('Choose a smaller image.');
+  return { bytes: output, width: croppedWidth, height: croppedHeight };
 }

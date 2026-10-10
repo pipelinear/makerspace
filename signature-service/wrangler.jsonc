@@ -4,13 +4,31 @@
   "main": "src/worker.js",
   "compatibility_date": "2026-10-08",
   "workers_dev": true,
-  "triggers": { "crons": ["0 4 * * *"] },
-  "vars": { "ALLOWED_ORIGINS": "https://pipelinear.github.io" },
-  "d1_databases": [{
-    "binding": "DB",
-    "database_name": "makerspace-signatures",
-    "database_id": "SET_BY_SETUP",
-    "migrations_dir": "migrations"
-  }],
-  "r2_buckets": [{ "binding": "SIGNATURE_IMAGES", "bucket_name": "makerspace-signatures" }]
+  "triggers": {
+    "crons": [
+      "0 4 * * *"
+    ]
+  },
+  "vars": {
+    "ALLOWED_ORIGINS": "https://pipelinear.github.io",
+    "R2_ENABLED": "true",
+    "R2_STORAGE_LIMIT": "536870912",
+    "R2_IMAGE_LIMIT": "1000",
+    "R2_WRITE_LIMIT": "2500",
+    "R2_READ_LIMIT": "100000"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "makerspace-signatures",
+      "database_id": "93d83ad6-6ef0-46d6-addc-0d20e2b38e8f",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "SIGNATURE_IMAGES",
+      "bucket_name": "makerspace-signatures"
+    }
+  ]
 }
